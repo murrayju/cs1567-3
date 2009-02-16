@@ -5,62 +5,130 @@
 #include <stdio.h>
 #include <libplayerc/playerc.h>
 
-#define stage_environment
+//#define stage_environment
 
-int main(int argc, const char **argv)
-{
-  int i;
-  playerc_client_t *client;
-  playerc_position2d_t *position2d;
-  
-  //defines range devices based on the environment
-  #ifdef stage_environment
+#ifdef stage_environment
+#define SERVER "localhost"
+#define PORT	12121
+#else
+#define SERVER "gort"
+#define PORT	9876
+#endif
+
+typedef struct _playerc_HANDLES {
+	playerc_client_t * client;
+	playerc_position2d_t * pos2d;
+	playerc_position1d_t * pos1d;
+	
+	//defines range devices based on the environment
+#ifdef stage_environment
   	playerc_ranger_t * sonar;
   	playerc_ranger_t * ir;
-  #else
+#else
   	playerc_bumper_t * bumper;
   	playerc_sonar_t * sonar;
-  	player_ir_t	* ir;
-  #endif
+  	playerc_ir_t	* ir;
+	playerc_power_t * power;
+#endif
+} playerc_HANDLES;
 
-  // Create a client object and connect to the server; the server must
-  // be running on "localhost" at port 6665
-  client = playerc_client_create(NULL, "localhost", 6665);
-  	if (playerc_client_connect(client) != 0)
-    {
-      fprintf(stderr, "error: %s\n", playerc_error_str());
-      return -1;
-    }
-    printf("Connected to Robot\n");
+int main(int argc, const char **argv) {
+	int i;
+	playerc_HANDLES hnd;
 
-  // Create a position2d proxy (device id "position2d:0") and susbscribe
-  // in read/write mode
-  position2d = playerc_position2d_create(client, 0);
-  if (playerc_position2d_subscribe(position2d, PLAYERC_OPEN_MODE) != 0)
-    {
-      fprintf(stderr, "error: %s\n", playerc_error_str());
-      return -1;
-    }
-
-  // Enable the robots motors
-  playerc_position2d_enable(position2d, 1);
-
-  // Start the robot turning slowing
-  playerc_position2d_set_cmd_vel(position2d, 0, 0, 0.1, 1);
-
-  for (i = 0; i < 200; i++)
-    {
-      // Read data from the server and display current robot position
-      playerc_client_read(client);
-      printf("position : %f %f %f\n",
-	     position2d->px, position2d->py, position2d->pa);
-    } 
-
-  // Shutdown and tidy up
-  playerc_position2d_unsubscribe(position2d);
-  playerc_position2d_destroy(position2d);
-  playerc_client_disconnect(client);
-  playerc_client_destroy(client);
-
-  return 0;
+	
+	// Create a client object and connect to the server
+	hnd.client = playerc_client_create(NULL, SERVER, PORT);
+  	if (playerc_client_connect(hnd.client) != 0) {
+		fprintf(stderr, "error: %s\n", playerc_error_str());
+		return -1;
+	}
+	printf("Connected to Robot\n");
+	
+	// Create a position2d proxy (device id "position2d:0") and susbscribe
+	// in read/write mode
+	hnd.pos2d = playerc_position2d_create(hnd.client, 0);
+	if (playerc_position2d_subscribe(hnd.pos2d, PLAYERC_OPEN_MODE) != 0) {
+		fprintf(stderr, "error: %s\n", playerc_error_str());
+		return -1;
+	}
+	
+	hnd.pos1d = playerc_position1d_create(hnd.client, 0);
+	if (playerc_position1d_subscribe(hnd.pos1d, PLAYERC_OPEN_MODE) != 0) {
+		fprintf(stderr, "error: %s\n", playerc_error_str());
+		return -1;
+	}
+	
+	// Create and subscribe proxies based on stage_environment
+#ifdef stage_environment
+	hnd.sonar = playerc_ranger_create(hnd.client, 0);
+	if(playerc_ranger_subscribe(hnd.sonar, PLAYERC_OPEN_MODE)) {
+		fprintf(stderr, "error: %s\n", playerc_error_str());
+		return -1;
+	}
+	
+	hnd.ir = playerc_ranger_create(hnd.client, 1);
+	if(playerc_ranger_subscribe(hnd.ir, PLAYERC_OPEN_MODE)) {
+		fprintf(stderr, "error: %s\n", playerc_error_str());
+		return -1;
+	}
+#else
+	hnd.bumper = playerc_bumper_create(hnd.client, 0);
+	if(playerc_bumper_subscribe(hnd.bumper, PLAYERC_OPEN_MODE)) {
+		fprintf(stderr, "error: %s\n", playerc_error_str());
+		return -1;
+	}
+	
+	hnd.sonar = playerc_sonar_create(hnd.client, 0);
+	if(playerc_sonar_subscribe(hnd.sonar, PLAYERC_OPEN_MODE)) {
+		fprintf(stderr, "error: %s\n", playerc_error_str());
+		return -1;
+	}
+	
+	hnd.ir = playerc_ir_create(hnd.client, 1);
+	if(playerc_ir_subscribe(hnd.ir, PLAYERC_OPEN_MODE)) {
+		fprintf(stderr, "error: %s\n", playerc_error_str());
+		return -1;
+	}
+	
+	hnd.power = playerc_power_create(hnd.client, 0);
+	if(playerc_power_subscribe(hnd.power, PLAYERC_OPEN_MODE)) {
+		fprintf(stderr, "error: %s\n", playerc_error_str());
+		return -1;
+	}
+#endif
+	// Enable the robots motors
+	playerc_position2d_enable(hnd.pos2d, 1);
+	playerc_position1d_enable(hnd.pos1d, 1);
+	
+	for (i = 0; i < 200; i++) {
+		// Read data from the server and display current robot position
+		playerc_client_read(hnd.client);
+		printf("pos2d: %f %f %f  pos1d: %f\n",	hnd.pos2d->px, hnd.pos2d->py, hnd.pos2d->pa, hnd.pos1d->pos);
+	} 
+	
+	// Shutdown and tidy up.  Close all of the proxy handles
+	playerc_position2d_unsubscribe(hnd.pos2d);
+	playerc_position2d_destroy(hnd.pos2d);
+	playerc_position1d_unsubscribe(hnd.pos1d);
+	playerc_position1d_destroy(hnd.pos1d);
+#ifdef stage_environment
+	playerc_ranger_unsubscribe(hnd.sonar);
+	playerc_ranger_destroy(hnd.sonar);
+	playerc_ranger_unsubscribe(hnd.ir);
+	playerc_ranger_destroy(hnd.ir);
+#else
+	playerc_bumper_unsubscribe(hnd.bumper);
+	playerc_bumper_destroy(hnd.bumper);
+	playerc_sonar_unsubscribe(hnd.sonar);
+	playerc_sonar_destroy(hnd.sonar);
+	playerc_ir_unsubscribe(hnd.ir);
+	playerc_ir_destroy(hnd.ir);
+	playerc_power_unsubscribe(hnd.power);
+	playerc_power_destroy(hnd.power);
+#endif
+	playerc_client_disconnect(hnd.client);
+	playerc_client_destroy(hnd.client);
+	
+	return 0;
 }
