@@ -13,6 +13,7 @@
 #else
 #define SERVER "gort"
 #define PORT	9876
+#define T_ANGLE 90.0
 #endif
 
 typedef struct _playerc_HANDLES {
@@ -97,9 +98,11 @@ int main(int argc, const char **argv) {
 		return -1;
 	}
 #endif
-	// Enable the robots motors
+	// Enable the robots motors and rotates turret servo POSSIBLE ISSUE HERE 
+	//I THINK THIS NEEDS TO GO IN THE IFDEF BECAUSE THE POS1D doesnt exist in stage
 	playerc_position2d_enable(hnd.pos2d, 1);
 	playerc_position1d_enable(hnd.pos1d, 1);
+	playerc_position1d_set_cmd_pos(hnd.pos1d, T_ANGLE,0);
 	
 	for (i = 0; i < 200; i++) {
 		// Read data from the server and display current robot position
