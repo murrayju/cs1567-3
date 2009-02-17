@@ -339,3 +339,13 @@ double Turn(playerc_client_t * client, playerc_position2d_t * pos2D, playerc_bum
 	return rotError(pos2D, &rotData, A);
 }
 
+double sonar_error(playerc_sonar_t *theSonar)
+{
+	/*This assumes that sonar:0 is on the right of the robot when looking at it
+	from above and sonar:1 is on the left
+	Negative error means too far to the right and positive means to far left*/
+	
+	printf("Right Side Sonar: %f\n",theSonar->scan[0]);
+	printf("Left Side Sonar: %f\n",theSonar->scan[1]);
+	return (theSonar->scan[0] - theSonar->scan[1]);
+}
