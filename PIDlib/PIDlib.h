@@ -7,8 +7,25 @@
 
 #define ABSOLUTE_COORD
 
-int bumped(playerc_bumper_t *);
+typedef struct _playerc_HANDLES {
+	playerc_client_t * client;
+	playerc_position2d_t * pos2d;	
+	
+	//defines range devices based on the environment
+#ifdef stage_environment
+  	playerc_ranger_t * sonar;
+  	playerc_ranger_t * ir;
+#else
+	playerc_position1d_t * pos1d;
+  	playerc_bumper_t * bumper;
+  	playerc_sonar_t * sonar;
+  	playerc_ir_t	* ir;
+	playerc_power_t * power;
+#endif
+} playerc_HANDLES;
 
-double Move(playerc_client_t * client, playerc_position2d_t * pos2D, playerc_bumper_t * bumper, double X, double Y);
+int bumped(playerc_HANDLES *);
 
-double Turn(playerc_client_t * client, playerc_position2d_t * pos2D, playerc_bumper_t * bumper, double A);
+double Move(playerc_HANDLES *, double, double);
+
+double Turn(playerc_HANDLES *, double);

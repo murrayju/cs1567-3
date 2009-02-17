@@ -3,9 +3,11 @@
 //Main Hallway Navigator Executable
 
 #include <stdio.h>
+#include <string.h>
 #include <libplayerc/playerc.h>
-
 //#define stage_environment
+
+#include "../PIDlib/PIDlib.h"
 
 #ifdef stage_environment
 #define SERVER "localhost"
@@ -16,30 +18,41 @@
 #define T_ANGLE 90.0
 #endif
 
-typedef struct _playerc_HANDLES {
-	playerc_client_t * client;
-	playerc_position2d_t * pos2d;
-	playerc_position1d_t * pos1d;
-	
-	//defines range devices based on the environment
-#ifdef stage_environment
-  	playerc_ranger_t * sonar;
-  	playerc_ranger_t * ir;
-#else
-  	playerc_bumper_t * bumper;
-  	playerc_sonar_t * sonar;
-  	playerc_ir_t	* ir;
-	playerc_power_t * power;
-#endif
-} playerc_HANDLES;
-
 int main(int argc, const char **argv) {
 	int i;
 	playerc_HANDLES hnd;
+	char server[20];
+	int port;
+	
+	//Defaults
+	strcpy(server,SERVER);
+	port = PORT;
 
+	// process command line args
+	i = 1;
+	while( i < argc ) {
+		if(!strcmp(argv[i], "-s")) {
+			if(argc < (i + 2)) {
+				printf("Improper usage of -s.\nUsage: hallnavigator -s SERVER\n");
+				return -1;
+			}
+			strcpy(server,argv[i+1]);
+			i+=2;
+		} else if(!strcmp(argv[i], "-p")) {
+			if(argc < (i + 2)) {
+				printf("Improper usage of -p.\nUsage: hallnavigator -p PORT\n");
+				return -1;
+			}
+			port = atof(argv[i+1]);
+			i+=2;
+		} else {
+			printf("Unrecognized option [%s]\n",argv[i]);
+			return -1;
+		}
+	}
 	
 	// Create a client object and connect to the server
-	hnd.client = playerc_client_create(NULL, SERVER, PORT);
+	hnd.client = playerc_client_create(NULL, server, port);
   	if (playerc_client_connect(hnd.client) != 0) {
 		fprintf(stderr, "error: %s\n", playerc_error_str());
 		return -1;
@@ -98,11 +111,12 @@ int main(int argc, const char **argv) {
 		return -1;
 	}
 #endif
-	// Enable the robots motors and rotates turret servo POSSIBLE ISSUE HERE 
-	//I THINK THIS NEEDS TO GO IN THE IFDEF BECAUSE THE POS1D doesnt exist in stage
+	// Enable the robots motors and rotates turret servo
 	playerc_position2d_enable(hnd.pos2d, 1);
+#ifndef stage_environment
 	playerc_position1d_enable(hnd.pos1d, 1);
 	playerc_position1d_set_cmd_pos(hnd.pos1d, T_ANGLE,0);
+#endif
 	
 	for (i = 0; i < 200; i++) {
 		// Read data from the server and display current robot position

@@ -224,13 +224,17 @@ double rotError(playerc_position2d_t * pos2D, pid_data * data, double tA) {
 }
 
 
-int bumped(playerc_bumper_t * b) {
+int bumped(playerc_HANDLES * hands) {
+#ifdef stage_environment
+	return 0;
+#else
 	static int storeBump = 0;
 	if(storeBump) {
 		return 1;
 	} else {
-		return storeBump = (b->bumpers[0] || b->bumpers[1]);
+		return storeBump = (hands->bumper->bumpers[0] || hands->bumper->bumpers[1]);
 	}
+#endif
 }
 
 double angleMultiplier(double v) {
@@ -243,7 +247,7 @@ double angleMultiplier(double v) {
 	}
 }
 
-double Move(playerc_client_t * client, playerc_position2d_t * pos2D, playerc_bumper_t * bumper, double X, double Y) {
+double Move(playerc_HANDLES * hands, double X, double Y) {
 	double tError, rError, vX, vA;
 	pid_data tranData, rotData;
 	
@@ -264,19 +268,19 @@ double Move(playerc_client_t * client, playerc_position2d_t * pos2D, playerc_bum
 	rotData.tol = 0.005;
 	rotData.maxI = 10;
 	
-	playerc_client_read(client);
+	playerc_client_read(hands->client);
 	
 	//Store initial position info
-	tranData.Xi = pos2D->px;
-	tranData.Yi = pos2D->py;
-	tranData.Ai = pos2D->pa;
+	tranData.Xi = hands->pos2d->px;
+	tranData.Yi = hands->pos2d->py;
+	tranData.Ai = hands->pos2d->pa;
 	
-	rotData.Xi = pos2D->px;
-	rotData.Yi = pos2D->py;
-	rotData.Ai = pos2D->pa;
+	rotData.Xi = hands->pos2d->px;
+	rotData.Yi = hands->pos2d->py;
+	rotData.Ai = hands->pos2d->pa;
 	
-	while(!bumped(bumper) && (tError = tranError(pos2D, &tranData, X, Y)) > tranData.tol) {
-		rError = targetRotError(pos2D,&rotData, X, Y);
+	while(!bumped(hands) && (tError = tranError(hands->pos2d, &tranData, X, Y)) > tranData.tol) {
+		rError = targetRotError(hands->pos2d,&rotData, X, Y);
 		if(rError > 0.75*PI || rError < -0.75*PI) {
 			//We passed it up, error should be negative
 			tError = -tError;
@@ -291,21 +295,21 @@ double Move(playerc_client_t * client, playerc_position2d_t * pos2D, playerc_bum
 		}
 		vX = PID(&tranData);
 		vA = PID(&rotData) * angleMultiplier(vX);
-		playerc_position2d_set_cmd_vel(pos2D, vX, 0, vA, 1); //set new speeds
-		playerc_client_read(client); //update position from sensors
+		playerc_position2d_set_cmd_vel(hands->pos2d, vX, 0, vA, 1); //set new speeds
+		playerc_client_read(hands->client); //update position from sensors
 		
-		printf("VX: %f  VA: %f  Terror: %f  Rerror: %f  position : %f %f %f  bumpers: %d %d\n", vX, vA, tError, rError, pos2D->px, pos2D->py, pos2D->pa, bumper->bumpers[0], bumper->bumpers[1]);
+		printf("VX: %f  VA: %f  Terror: %f  Rerror: %f  position : %f %f %f  bumpers: %d %d\n", vX, vA, tError, rError, hands->pos2d->px, hands->pos2d->py, hands->pos2d->pa, hands->bumper->bumpers[0], hands->bumper->bumpers[1]);
 	} 
 	
-	playerc_position2d_set_cmd_vel(pos2D, 0, 0, 0, 1); //STOP!
-	playerc_client_read(client); //update position from sensors
+	playerc_position2d_set_cmd_vel(hands->pos2d, 0, 0, 0, 1); //STOP!
+	playerc_client_read(hands->client); //update position from sensors
 #ifndef ABSOLUTE_COORD
-	Turn(client,pos2D,bumper,-(pos2D->pa - rotData.Ai));
+	Turn(hands,-(pos2D->pa - rotData.Ai));
 #endif	
-	return tranError(pos2D, &tranData, X, Y);
+	return tranError(hands->pos2d, &tranData, X, Y);
 }
 
-double Turn(playerc_client_t * client, playerc_position2d_t * pos2D, playerc_bumper_t * bumper, double A) {
+double Turn(playerc_HANDLES * hands, double A) {
 	double rError, vA;
 	pid_data rotData;
 	
@@ -319,33 +323,32 @@ double Turn(playerc_client_t * client, playerc_position2d_t * pos2D, playerc_bum
 	rotData.tol = 0.005;
 	rotData.maxI = 0.5;
 	
-	playerc_client_read(client);
+	playerc_client_read(hands->client);
 	
 	//Store initial position info
-	rotData.Xi = pos2D->px;
-	rotData.Yi = pos2D->py;
-	rotData.Ai = pos2D->pa;
+	rotData.Xi = hands->pos2d->px;
+	rotData.Yi = hands->pos2d->py;
+	rotData.Ai = hands->pos2d->pa;
 	
-	while(!bumped(bumper) && fabs(rError = rotError(pos2D,&rotData, A)) > rotData.tol) {
+	while(!bumped(hands) && fabs(rError = rotError(hands->pos2d,&rotData, A)) > rotData.tol) {
 		vA = PID(&rotData);
-		playerc_position2d_set_cmd_vel(pos2D, 0, 0, vA, 1); //set new speeds
-		playerc_client_read(client); //update position from sensors
+		playerc_position2d_set_cmd_vel(hands->pos2d, 0, 0, vA, 1); //set new speeds
+		playerc_client_read(hands->client); //update position from sensors
 		
-		printf("VA: %f  Rerror: %f  position : %f %f %f  bumpers: %d %d\n", vA, rError, pos2D->px, pos2D->py, pos2D->pa, bumper->bumpers[0], bumper->bumpers[1]);
+		printf("VA: %f  Rerror: %f  position : %f %f %f  bumpers: %d %d\n", vA, rError, hands->pos2d->px, hands->pos2d->py, hands->pos2d->pa, hands->bumper->bumpers[0], hands->bumper->bumpers[1]);
 	} 
 	
-	playerc_position2d_set_cmd_vel(pos2D, 0, 0, 0, 1); //STOP!
-	playerc_client_read(client); //update position from sensors
-	return rotError(pos2D, &rotData, A);
+	playerc_position2d_set_cmd_vel(hands->pos2d, 0, 0, 0, 1); //STOP!
+	playerc_client_read(hands->client); //update position from sensors
+	return rotError(hands->pos2d, &rotData, A);
 }
 
-double sonar_error(playerc_sonar_t *theSonar)
-{
+double sonar_error(playerc_HANDLES * hands) {
 	/*This assumes that sonar:0 is on the right of the robot when looking at it
 	from above and sonar:1 is on the left
 	Negative error means too far to the right and positive means to far left*/
 	
-	printf("Right Side Sonar: %f\n",theSonar->scan[0]);
-	printf("Left Side Sonar: %f\n",theSonar->scan[1]);
-	return (theSonar->scan[0] - theSonar->scan[1]);
+	printf("Right Side Sonar: %f\n",hands->sonar->scan[0]);
+	printf("Left Side Sonar: %f\n",hands->sonar->scan[1]);
+	return (hands->sonar->scan[0] - hands->sonar->scan[1]);
 }
