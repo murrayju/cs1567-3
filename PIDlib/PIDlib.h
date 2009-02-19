@@ -22,10 +22,10 @@ typedef struct _playerc_HANDLES {
   	playerc_ir_t	* ir;
 	playerc_power_t * power;
 #endif
-} playerc_HANDLES;
+} playerc_HANDLES_t;
 
-int bumped(playerc_HANDLES *);
+int bumped(playerc_HANDLES_t *);
 
-double Move(playerc_HANDLES *, double, double);
+double Move(playerc_HANDLES_t *, double, double);
 
-double Turn(playerc_HANDLES *, double);
+double Turn(playerc_HANDLES_t *, double);

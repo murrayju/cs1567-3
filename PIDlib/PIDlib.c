@@ -224,7 +224,7 @@ double rotError(playerc_position2d_t * pos2D, pid_data * data, double tA) {
 }
 
 
-int bumped(playerc_HANDLES * hands) {
+int bumped(playerc_HANDLES_t * hands) {
 #ifdef stage_environment
 	return 0;
 #else
@@ -247,7 +247,7 @@ double angleMultiplier(double v) {
 	}
 }
 
-double Move(playerc_HANDLES * hands, double X, double Y) {
+double Move(playerc_HANDLES_t * hands, double X, double Y) {
 	double tError, rError, vX, vA;
 	pid_data tranData, rotData;
 	
@@ -309,7 +309,7 @@ double Move(playerc_HANDLES * hands, double X, double Y) {
 	return tranError(hands->pos2d, &tranData, X, Y);
 }
 
-double Turn(playerc_HANDLES * hands, double A) {
+double Turn(playerc_HANDLES_t * hands, double A) {
 	double rError, vA;
 	pid_data rotData;
 	
@@ -343,7 +343,7 @@ double Turn(playerc_HANDLES * hands, double A) {
 	return rotError(hands->pos2d, &rotData, A);
 }
 
-double sonar_error(playerc_HANDLES * hands) {
+double sonar_error(playerc_HANDLES_t * hands) {
 	/*This assumes that sonar:0 is on the right of the robot when looking at it
 	from above and sonar:1 is on the left
 	Negative error means too far to the right and positive means to far left*/
