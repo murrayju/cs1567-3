@@ -343,12 +343,32 @@ double Turn(playerc_HANDLES_t * hands, double A) {
 	return rotError(hands->pos2d, &rotData, A);
 }
 
-double sonar_error(playerc_HANDLES_t * hands) {
+double hall_center_err(playerc_HANDLES_t * hands, FilterData_t * filtR, FilterData_t * filtL) {
 	/*This assumes that sonar:0 is on the right of the robot when looking at it
 	from above and sonar:1 is on the left
 	Negative error means too far to the right and positive means to far left*/
+	double right;
+	double left;
+	double error;
 	
-	printf("Right Side Sonar: %f\n",hands->sonar->scan[0]);
-	printf("Left Side Sonar: %f\n",hands->sonar->scan[1]);
-	return (hands->sonar->scan[0] - hands->sonar->scan[1]);
+	right = nextSample(filtR, hands->sonar->scan[0]);
+	left = nextSample(filtL,hands->sonar->scan[1]);
+	
+	
+	if(right <= HALL_VAR && left <= HALL_VAR)	//both sonar can see a wall
+	{
+		error = right - left;
+	}
+	else if(right <= HALL_VAR && left > HALL_VAR)	//right sonar can see a wall and left cannot
+	{
+		error = (HALL_WIDTH/2.0) - right;
+	}
+	else if(left <= HALL_VAR && right > HALL_VAR)	//left sonar can see a wall and right cannot
+	{
+		error = (HALL_WIDTH/2.0) - left;
+	}
+	
+	printf("Right Side Sonar: %f\n",right);
+	printf("Left Side Sonar: %f\n",left);
+	return error;
 }

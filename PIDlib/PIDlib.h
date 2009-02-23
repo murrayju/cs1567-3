@@ -7,6 +7,9 @@
 
 #define ABSOLUTE_COORD
 
+#define HALL_WIDTH 1.82 //width of hallway in meters
+#define HALL_VAR 2.0	//hallway sonar max value acceptable
+
 typedef struct _playerc_HANDLES {
 	playerc_client_t * client;
 	playerc_position2d_t * pos2d;	
