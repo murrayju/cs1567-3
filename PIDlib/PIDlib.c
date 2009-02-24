@@ -365,7 +365,7 @@ double hall_center_err(playerc_HANDLES_t * hands, FilterData_t * filtR, FilterDa
 	}
 	else if(left <= HALL_VAR && right > HALL_VAR)	//left sonar can see a wall and right cannot
 	{
-		error = (HALL_WIDTH/2.0) - left;
+		error = left - (HALL_WIDTH/2.0);
 	}
 	
 	printf("Right Side Sonar: %f\n",right);
