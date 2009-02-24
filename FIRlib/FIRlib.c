@@ -3,6 +3,7 @@
 //FIRlib.c
 //Contains the FIR Filter Functions
 
+#include "FIRlib.h"
 
 double nextSample(FilterData_t *filter, double nextVal)
 {
@@ -36,9 +37,6 @@ double nextSample(FilterData_t *filter, double nextVal)
 	 {
 	 	next_index = 0;
 	 }
-	 
-	 
-	 
 }
 
 FilterData_t * initializeFilter()

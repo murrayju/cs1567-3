@@ -8,6 +8,7 @@
 #include <math.h>
 #include <libplayerc/playerc.h>
 #include "PIDlib.h"
+#include "../FIRlib/FIRlib.h"
 
 #define NUMERR 10
 
@@ -355,16 +356,13 @@ double hall_center_err(playerc_HANDLES_t * hands, FilterData_t * filtR, FilterDa
 	left = nextSample(filtL,hands->sonar->scan[1]);
 	
 	
-	if(right <= HALL_VAR && left <= HALL_VAR)	//both sonar can see a wall
-	{
+	if(right <= HALL_VAR && left <= HALL_VAR) {	//both sonar can see a wall
 		error = right - left;
 	}
-	else if(right <= HALL_VAR && left > HALL_VAR)	//right sonar can see a wall and left cannot
-	{
+	else if(right <= HALL_VAR && left > HALL_VAR) {	//right sonar can see a wall and left cannot
 		error = (HALL_WIDTH/2.0) - right;
 	}
-	else if(left <= HALL_VAR && right > HALL_VAR)	//left sonar can see a wall and right cannot
-	{
+	else if(left <= HALL_VAR && right > HALL_VAR) {	//left sonar can see a wall and right cannot
 		error = left - (HALL_WIDTH/2.0);
 	}
 	

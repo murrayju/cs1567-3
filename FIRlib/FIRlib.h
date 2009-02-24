@@ -18,7 +18,7 @@ typedef struct _FilterData
 
 
 //Next Sample Function see FIRlib.c for implementation details
-double nextSample(Filter *filter, double nextVal);
+double nextSample(FilterData_t * filter, double nextVal);
 
 //Initializes a FilterData_t struct see FIRlib.c for implementation details
 FilterData_t * initializeFilter();
