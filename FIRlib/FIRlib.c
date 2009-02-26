@@ -17,6 +17,11 @@ double nextSample(FilterData_t * f, double nextVal) {
 	 double sum = 0.0;
 	 int i,j;
 	 
+	 // Checks if value is within threshold
+	 if(nextVal > f->max) {
+		 nextVal = f->max;
+	 }
+	 
 	 //adds the newest value into the next slot of the array
 	 f->samples[f->next_index] = nextVal;
 	 
@@ -54,9 +59,11 @@ FilterData_t * initializeFilter(int type) {
 	if(type == IR) {
 		memcpy(f->coefficients, ir_coeffs, IR_SAMPLES * sizeof(double));
 		f->num_samples = IR_SAMPLES;
+		f->max = IR_MAX;
 	} else if(type == SONAR) {
 		memcpy(f->coefficients, sonar_coeffs, SONAR_SAMPLES * sizeof(double));
 		f->num_samples = SONAR_SAMPLES;
+		f->max = SONAR_MAX;
 	}
 	return f;
 }

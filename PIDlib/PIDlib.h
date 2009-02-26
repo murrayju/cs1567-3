@@ -9,7 +9,13 @@
 
 #define HALL_WIDTH 182 //width of hallway in centimeters
 #define HALL_VAR 200	//hallway sonar max value acceptable
-#define IR_VAR 30.0
+#define IR_VAR 35.0
+
+// Wall status defines
+#define WALLS_BOTH		0
+#define WALLS_LEFT_ONLY		1
+#define WALLS_RIGHT_ONLY	2
+#define WALLS_NONE		3
 
 typedef struct _playerc_HANDLES {
 	playerc_client_t * client;

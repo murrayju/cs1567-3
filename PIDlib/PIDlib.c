@@ -22,6 +22,9 @@ typedef struct pid_data_struct {
 	int doDiff;
 } pid_data;
 
+int checkInFront(playerc_HANDLES_t *, FilterData_t *);
+double hall_center_err(playerc_HANDLES_t *, FilterHandles_t *, int *);
+
 double prevError(pid_data * data) {
 	if(data->iErr == 0) {
 		return data->errorHist[NUMERR - 1];
@@ -75,22 +78,10 @@ double tranError(playerc_position2d_t * pos2D, pid_data * data, double tX, doubl
 	double Xreal, Yreal, Xrem, Yrem;
 	double mew, theta, phi, error;
 	data->iErr = (data->iErr + 1) % NUMERR;
-#ifdef ABSOLUTE_COORD
+
 	//Find the remaining distance from target
 	Xrem = tX - pos2D->px;
 	Yrem = tY - pos2D->py;
-#else
-	//calculate angle based on relative coordinate system
-	mew = atan2(tY, tX);
-	
-	//Find the real X and Y dist from start to finish, in the robot coordinate system
-	Xreal = dist(tX,tY) * cos(mew + data->Ai) + data->Xi;
-	Yreal = dist(tX,tY) * sin(mew + data->Ai) + data->Yi;
-	
-	//Find the remaining distance
-	Xrem = Xreal - pos2D->px;
-	Yrem = Yreal - pos2D->py;
-#endif
 	printf("Remaining real distance - x=%f y=%f\n",Xrem,Yrem);
 	
 	return data->errorHist[data->iErr] = dist(Xrem,Yrem);
@@ -157,7 +148,7 @@ double targetRotError(playerc_position2d_t * pos2D, pid_data * data, double tX, 
 	double Xreal, Yreal, Xrem, Yrem;
 	double mew, theta, phi, error;
 	data->iErr = (data->iErr + 1) % NUMERR;
-#ifdef ABSOLUTE_COORD
+
 	//find the remaining distance to the target
 	Xrem = tX - pos2D->px;
 	Yrem = tY - pos2D->py;
@@ -183,42 +174,14 @@ double targetRotError(playerc_position2d_t * pos2D, pid_data * data, double tX, 
 	//error = phi - pos2D->pa;
 	error = angleDiff(phi, pos2D->pa);
 	printf("TRE: dist=(%f,%f) phi=%f err=%f\n",Xrem,Yrem,phi,error);
-#else
-	//calculate angle based on relative coordinate system
-	mew = atan2(tY, tX);
-	
-	//Find the real X and Y dist from start to finish, in the robot coordinate system
-	Xreal = dist(tX,tY) * cos(mew + data->Ai) + data->Xi;
-	Yreal = dist(tX,tY) * sin(mew + data->Ai) + data->Yi;
-	
-	//Find the remaining distance
-	Xrem = Xreal - pos2D->px;
-	Yrem = Yreal - pos2D->py;
-	
-	//Calculate angle from current pos robot X axis to target
-	phi = atan2(Yrem, Xrem);
-	
-	//error = phi - pos2D->pa;
-	error = angleDiff(phi, pos2D->pa);
-	printf("TRE: target=(%f, %f) phi=%f err=%f\n",Xreal,Yreal,phi,error);
-#endif
 	return data->errorHist[data->iErr] = error;
 }
 
 double rotError(playerc_position2d_t * pos2D, pid_data * data, double tA) {
-#ifdef  ABSOLUTE_COORD
 	double relA = pos2D->pa;
-#else
-	double relA = pos2D->pa - data->Ai;
-#endif
 	double error;
 	
 	data->iErr = (data->iErr + 1) % NUMERR;
-	
-	/*error = fabs( fabs(tA) - fabs(relA) );
-	if(tA < 0) {
-		error = -error;
-	}*/
 	error = angleDiff(tA, pos2D->pa);
 	
 	return data->errorHist[data->iErr] = error;
@@ -304,9 +267,7 @@ double Move(playerc_HANDLES_t * hands, double X, double Y) {
 	
 	playerc_position2d_set_cmd_vel(hands->pos2d, 0, 0, 0, 1); //STOP!
 	playerc_client_read(hands->client); //update position from sensors
-#ifndef ABSOLUTE_COORD
-	Turn(hands,-(pos2D->pa - rotData.Ai));
-#endif	
+	
 	return tranError(hands->pos2d, &tranData, X, Y);
 }
 
@@ -344,7 +305,7 @@ double Turn(playerc_HANDLES_t * hands, double A) {
 	return rotError(hands->pos2d, &rotData, A);
 }
 
-double hall_center_err(playerc_HANDLES_t * hands, FilterData_t * filtR, FilterData_t * filtL) {
+double hall_center_err(playerc_HANDLES_t * hands, FilterHandles_t * filt, int * walls) {
 	/*This assumes that sonar:0 is on the right of the robot when looking at it
 	from above and sonar:1 is on the left
 	Negative error means too far to the right and positive means to far left*/
@@ -352,37 +313,37 @@ double hall_center_err(playerc_HANDLES_t * hands, FilterData_t * filtR, FilterDa
 	double left;
 	double error;
 	
-	right = nextSample(filtR, hands->sonar->scan[0]);
-	left = nextSample(filtL,hands->sonar->scan[1]);
-	
+	right = nextSample(filt->sonarR, hands->sonar->scan[0]);
+	left = nextSample(filt->sonarL,hands->sonar->scan[1]);
 	
 	if(right <= HALL_VAR && left <= HALL_VAR) {	//both sonar can see a wall
 		error = right - left;
-	}
-	else if(right <= HALL_VAR && left > HALL_VAR) {	//right sonar can see a wall and left cannot
+		*walls = WALLS_BOTH;
+	} else if(right <= HALL_VAR && left > HALL_VAR) {	//right sonar can see a wall and left cannot
 		error = (HALL_WIDTH/2.0) - right;
-	}
-	else if(left <= HALL_VAR && right > HALL_VAR) {	//left sonar can see a wall and right cannot
+		*walls = WALLS_RIGHT_ONLY;
+	} else if(left <= HALL_VAR && right > HALL_VAR) {	//left sonar can see a wall and right cannot
 		error = left - (HALL_WIDTH/2.0);
+		*walls = WALLS_LEFT_ONLY;
+	} else {
+		error = 0.0;	// Stay in center
+		*walls = WALLS_NONE;
 	}
-	
-	printf("Right Side Sonar: %f\n",right);
-	printf("Left Side Sonar: %f\n",left);
 	return error;
 }
 
-int checkInFront(playerc_HANDLES_t * hands,FilterData_t *filter)
-{
+int checkInFront(playerc_HANDLES_t * hands,FilterData_t *filter) {
 	/*
 	 *	This function takes the ir handle and filter, updates the ir filter data 
 	 *	using the handle and then checkes to see if the updated value is less
-	 *	than the set variance.  If it is it returns a 1 indicating something is *	in front of it, and it needs to stop and wait
+	 *	than the set variance.  If it is it returns a 1 indicating something is
+	 *	in front of it, and it needs to stop and wait
 	 */
 	int value;
 	
 	value = nextSample(filter, hands->ir->data.ranges[0]);
 	
-	if(value <= IR_VAR){
+	if(value <= IR_VAR) {
 		return 1;
 	}
 	return 0;

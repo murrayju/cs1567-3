@@ -92,7 +92,8 @@ int main(int argc, const char **argv) {
 		playerc_client_read(hnd->client);
 		
 #ifdef DEBUG
-printf("pos2d: %f %f %f  sonar: %f %f  ir: %f\n", hnd->pos2d->px, hnd->pos2d->py, hnd->pos2d->pa, nextSample(filt->sonarR, hnd->sonar->scan[0]), nextSample(filt->sonarL, hnd->sonar->scan[1]), nextSample(filt->ir, hnd->ir->data.ranges[0]));
+//printf("pos2d: %f %f %f  sonar: %f %f  ir: %f\n", hnd->pos2d->px, hnd->pos2d->py, hnd->pos2d->pa, nextSample(filt->sonarR, hnd->sonar->scan[0]), nextSample(filt->sonarL, hnd->sonar->scan[1]), nextSample(filt->ir, hnd->ir->data.ranges[0]));
+printf("sonar: %f(%f) %f(%f)  ir: %f(%f)\n", hnd->sonar->scan[0], nextSample(filt->sonarR, hnd->sonar->scan[0]), hnd->sonar->scan[1], nextSample(filt->sonarL, hnd->sonar->scan[1]), hnd->ir->data.ranges[0], nextSample(filt->ir, hnd->ir->data.ranges[0]));
 #endif
 	} 
 	
