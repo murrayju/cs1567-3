@@ -14,7 +14,7 @@ double nextSample(FilterData_t * f, double nextVal) {
 	 *	returns the filtered data and updates the sample array which is 
 	 *	implemented as a ring buffer
 	 */
-	 double sum;
+	 double sum = 0.0;
 	 int i,j;
 	 
 	 //adds the newest value into the next slot of the array
@@ -34,6 +34,7 @@ double nextSample(FilterData_t * f, double nextVal) {
 	 //it equals SAMPLES
 	 f->next_index++;
 	 f->next_index %= f->num_samples;
+	 return sum;
 }
 
 FilterData_t * initializeFilter(int type) {
@@ -46,10 +47,10 @@ FilterData_t * initializeFilter(int type) {
 	double sonar_coeffs[] = SONAR_COEFFS;
 	FilterData_t *f = malloc(sizeof(FilterData_t));
 	
-	for(i = 0; i < MAX_SAMPLES; i++) {
-		f->samples[i] = 0;
-	}
+	// Initialize everything to zero
+	memset(f,0,sizeof(FilterData_t));
 	
+	// Copy the #defined coeffs into the struct
 	if(type == IR) {
 		memcpy(f->coefficients, ir_coeffs, IR_SAMPLES * sizeof(double));
 		f->num_samples = IR_SAMPLES;
@@ -57,6 +58,5 @@ FilterData_t * initializeFilter(int type) {
 		memcpy(f->coefficients, sonar_coeffs, SONAR_SAMPLES * sizeof(double));
 		f->num_samples = SONAR_SAMPLES;
 	}
-	f->next_index = 0;
 	return f;
 }

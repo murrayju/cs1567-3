@@ -9,6 +9,7 @@
 #define DEBUG
 
 #include "../PIDlib/PIDlib.h"
+#include "../FIRlib/FIRlib.h"
 
 #ifdef stage_environment
 #define SERVER "localhost"
@@ -25,6 +26,7 @@ void destroyHandles(playerc_HANDLES_t *);
 int main(int argc, const char **argv) {
 	int i;
 	playerc_HANDLES_t * hnd;
+	FilterHandles_t * filt;
 	char server[20];
 	int port;
 	
@@ -33,6 +35,14 @@ int main(int argc, const char **argv) {
 		fprintf(stderr,"Error calling malloc\n");
 		return -1;
 	}
+	filt = malloc(sizeof(FilterHandles_t));
+	if(filt == NULL) {
+		fprintf(stderr,"Error calling malloc\n");
+		return -1;
+	}
+	filt->sonarR = initializeFilter(SONAR);
+	filt->sonarL = initializeFilter(SONAR);
+	filt->ir = initializeFilter(IR);
 	
 	//Defaults
 	strcpy(server,SERVER);
@@ -77,11 +87,12 @@ int main(int argc, const char **argv) {
 	printf("Devices Enabled\n");
 	
 	
-	for (i = 0; i < 200; i++) {
+	for (i = 0; i < 2000; i++) {
 		// Read data from the server and display current robot position
 		playerc_client_read(hnd->client);
+		
 #ifdef DEBUG
-		printf("pos2d: %f %f %f  pos1d: %f\n  sonar: %f %f\n", hnd->pos2d->px, hnd->pos2d->py, hnd->pos2d->pa, hnd->pos1d->pos, hnd->sonar->scan[0], hnd->sonar->scan[1]);
+printf("pos2d: %f %f %f  sonar: %f %f  ir: %f\n", hnd->pos2d->px, hnd->pos2d->py, hnd->pos2d->pa, nextSample(filt->sonarR, hnd->sonar->scan[0]), nextSample(filt->sonarL, hnd->sonar->scan[1]), nextSample(filt->ir, hnd->ir->data.ranges[0]));
 #endif
 	} 
 	
@@ -99,11 +110,13 @@ int connectDevices(playerc_HANDLES_t * hnd) {
 		return -1;
 	}
 	
+	/* The position1D stuff is broken
 	hnd->pos1d = playerc_position1d_create(hnd->client, 0);
 	if (playerc_position1d_subscribe(hnd->pos1d, PLAYERC_OPEN_MODE) != 0) {
 		fprintf(stderr, "error: %s\n", playerc_error_str());
 		return -1;
 	}
+	*/
 	
 	// Create and subscribe proxies based on stage_environment
 #ifdef stage_environment
@@ -146,8 +159,8 @@ int connectDevices(playerc_HANDLES_t * hnd) {
 	// Enable the robots motors and rotates turret servo
 	playerc_position2d_enable(hnd->pos2d, 1);
 #ifndef stage_environment
-	playerc_position1d_enable(hnd->pos1d, 1);
-	playerc_position1d_set_cmd_pos(hnd->pos1d, T_ANGLE,0);
+	//playerc_position1d_enable(hnd->pos1d, 1);
+	//playerc_position1d_set_cmd_pos(hnd->pos1d, T_ANGLE,0);
 #endif
 	return 0;
 }
@@ -155,8 +168,8 @@ int connectDevices(playerc_HANDLES_t * hnd) {
 void destroyHandles(playerc_HANDLES_t * hnd) {
 	playerc_position2d_unsubscribe(hnd->pos2d);
 	playerc_position2d_destroy(hnd->pos2d);
-	playerc_position1d_unsubscribe(hnd->pos1d);
-	playerc_position1d_destroy(hnd->pos1d);
+	//playerc_position1d_unsubscribe(hnd->pos1d);
+	//playerc_position1d_destroy(hnd->pos1d);
 #ifdef stage_environment
 	playerc_ranger_unsubscribe(hnd->sonar);
 	playerc_ranger_destroy(hnd->sonar);

@@ -26,6 +26,11 @@ typedef struct _FilterData
   double samples[MAX_SAMPLES];
 } FilterData_t;
 
+typedef struct _FilterHandles {
+	FilterData_t * sonarL;
+	FilterData_t * sonarR;
+	FilterData_t * ir;
+} FilterHandles_t;
 
 //Next Sample Function see FIRlib.c for implementation details
 double nextSample(FilterData_t *filter, double nextVal);
