@@ -9,6 +9,7 @@
 
 #define HALL_WIDTH 182 //width of hallway in centimeters
 #define HALL_VAR 200	//hallway sonar max value acceptable
+#define IR_VAR 30.0
 
 typedef struct _playerc_HANDLES {
 	playerc_client_t * client;

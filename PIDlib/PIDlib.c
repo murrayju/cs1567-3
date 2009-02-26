@@ -370,3 +370,20 @@ double hall_center_err(playerc_HANDLES_t * hands, FilterData_t * filtR, FilterDa
 	printf("Left Side Sonar: %f\n",left);
 	return error;
 }
+
+int checkInFront(playerc_HANDLES_t * hands,FilterData_t *filter)
+{
+	/*
+	 *	This function takes the ir handle and filter, updates the ir filter data 
+	 *	using the handle and then checkes to see if the updated value is less
+	 *	than the set variance.  If it is it returns a 1 indicating something is *	in front of it, and it needs to stop and wait
+	 */
+	int value;
+	
+	value = nextSample(filter, hands->ir->data.ranges[0]);
+	
+	if(value <= IR_VAR){
+		return 1;
+	}
+	return 0;
+}
