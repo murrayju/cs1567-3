@@ -11,14 +11,12 @@
 #include "../PIDlib/PIDlib.h"
 #include "../FIRlib/FIRlib.h"
 
-#ifdef stage_environment
-#define SERVER "localhost"
-#define PORT	12121
-#else
+
 #define SERVER "gort"
 #define PORT	9876
 #define T_ANGLE 90.0
-#endif
+#define COMPORT "/dev/ttyS2"
+
 
 int connectDevices(playerc_HANDLES_t *);
 void destroyHandles(playerc_HANDLES_t *);
@@ -111,28 +109,7 @@ int connectDevices(playerc_HANDLES_t * hnd) {
 		return -1;
 	}
 	
-	/* The position1D stuff is broken
-	hnd->pos1d = playerc_position1d_create(hnd->client, 0);
-	if (playerc_position1d_subscribe(hnd->pos1d, PLAYERC_OPEN_MODE) != 0) {
-		fprintf(stderr, "error: %s\n", playerc_error_str());
-		return -1;
-	}
-	*/
 	
-	// Create and subscribe proxies based on stage_environment
-#ifdef stage_environment
-	hnd->sonar = playerc_ranger_create(hnd->client, 0);
-	if(playerc_ranger_subscribe(hnd->sonar, PLAYERC_OPEN_MODE)) {
-		fprintf(stderr, "error: %s\n", playerc_error_str());
-		return -1;
-	}
-	
-	hnd->ir = playerc_ranger_create(hnd->client, 1);
-	if(playerc_ranger_subscribe(hnd->ir, PLAYERC_OPEN_MODE)) {
-		fprintf(stderr, "error: %s\n", playerc_error_str());
-		return -1;
-	}
-#else
 	hnd->bumper = playerc_bumper_create(hnd->client, 0);
 	if(playerc_bumper_subscribe(hnd->bumper, PLAYERC_OPEN_MODE)) {
 		fprintf(stderr, "error: %s\n", playerc_error_str());
@@ -156,13 +133,8 @@ int connectDevices(playerc_HANDLES_t * hnd) {
 		fprintf(stderr, "error: %s\n", playerc_error_str());
 		return -1;
 	}
-#endif
-	// Enable the robots motors and rotates turret servo
-	playerc_position2d_enable(hnd->pos2d, 1);
-#ifndef stage_environment
-	//playerc_position1d_enable(hnd->pos1d, 1);
-	//playerc_position1d_set_cmd_pos(hnd->pos1d, T_ANGLE,0);
-#endif
+
+
 	return 0;
 }
 
@@ -171,12 +143,7 @@ void destroyHandles(playerc_HANDLES_t * hnd) {
 	playerc_position2d_destroy(hnd->pos2d);
 	//playerc_position1d_unsubscribe(hnd->pos1d);
 	//playerc_position1d_destroy(hnd->pos1d);
-#ifdef stage_environment
-	playerc_ranger_unsubscribe(hnd->sonar);
-	playerc_ranger_destroy(hnd->sonar);
-	playerc_ranger_unsubscribe(hnd->ir);
-	playerc_ranger_destroy(hnd->ir);
-#else
+
 	playerc_bumper_unsubscribe(hnd->bumper);
 	playerc_bumper_destroy(hnd->bumper);
 	playerc_sonar_unsubscribe(hnd->sonar);
@@ -185,7 +152,7 @@ void destroyHandles(playerc_HANDLES_t * hnd) {
 	playerc_ir_destroy(hnd->ir);
 	playerc_power_unsubscribe(hnd->power);
 	playerc_power_destroy(hnd->power);
-#endif
+
 	playerc_client_disconnect(hnd->client);
 	playerc_client_destroy(hnd->client);
 	free(hnd);
