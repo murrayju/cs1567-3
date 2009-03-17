@@ -4,156 +4,106 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <libplayerc/playerc.h>
-//#define stage_environment
+#include <signal.h>
+#include "TurretAPI.h"
+#include "create_coms.h"
+
+#define FULLCONTROL 1
 #define DEBUG
 
 #include "../PIDlib/PIDlib.h"
 #include "../FIRlib/FIRlib.h"
 
-
-#define SERVER "gort"
-#define PORT	9876
 #define T_ANGLE 90.0
 #define COMPORT "/dev/ttyS2"
 
+//Global handles so they can be used by sighandle
+api_HANDLES_t * hands;
+FilterHandles_t * filt;
 
-int connectDevices(playerc_HANDLES_t *);
-void destroyHandles(playerc_HANDLES_t *);
+void cleanup() {
+	create_set_speeds(hands->c, 0, 0);
+	create_close(hands->c);
+	turret_close(hands->t);
+	free(filt->sonarR);
+	free(filt->sonarL);
+	free(filt->ir);
+	free(hands);
+	free(filt);
+}
+
+void sighandle(int sig) {
+	//stop the robot when program dies
+	printf("Signal caught (%d), shutting down\n",sig);
+	cleanup();
+}
 
 int main(int argc, const char **argv) {
-	int i;
-	playerc_HANDLES_t * hnd;
-	FilterHandles_t * filt;
-	char server[20];
-	int port;
+	int i, a;
+	int i2c_fd;
 	
-	hnd = malloc(sizeof(playerc_HANDLES_t));
-	if(hnd == NULL) {
+	//Set signals to handle
+	signal(SIGINT, &sighandle);
+	signal(SIGTERM, &sighandle);
+	signal(SIGABRT, &sighandle);
+	
+	//allocate structs
+	if((hands = malloc(sizeof(api_HANDLES_t))) == NULL) {
 		fprintf(stderr,"Error calling malloc\n");
 		return -1;
 	}
-	filt = malloc(sizeof(FilterHandles_t));
-	if(filt == NULL) {
+	if((filt = malloc(sizeof(FilterHandles_t))) == NULL) {
 		fprintf(stderr,"Error calling malloc\n");
 		return -1;
 	}
+	
+	// allocate devices
+	if((hands->c = create_create(COMPORT)) == NULL) {
+		fprintf(stderr,"Error connecting create\n");
+		return -1;
+	}
+	if((hands->t = turret_create()) == NULL) {
+		fprintf(stderr,"Error connecting turrett\n");
+		return -1;
+	}
+	
+	//open serial com port
+	if(create_open(hands->c, FULLCONTROL) < 0) {
+		fprintf(stderr,"Failed to open create\n");
+		return -1;
+	}
+	
+	//open i2c device
+	if(turret_open(hands->t) < 0) {
+		fprintf(stderr,"Failed to connect to robostix\n");
+		return -1;
+	}
+	
+	//initialize the robostix board
+	turret_init(hands->t);
+	
+	//Initialize Filter structs
 	filt->sonarR = initializeFilter(SONAR);
 	filt->sonarL = initializeFilter(SONAR);
 	filt->ir = initializeFilter(IR);
-	
-	//Defaults
-	strcpy(server,SERVER);
-	port = PORT;
 
 	// process command line args
 	i = 1;
 	while( i < argc ) {
-		if(!strcmp(argv[i], "-s")) {
-			if(argc < (i + 2)) {
-				printf("Improper usage of -s.\nUsage: hallnavigator -s SERVER\n");
-				return -1;
-			}
-			strcpy(server,argv[i+1]);
-			i+=2;
-		} else if(!strcmp(argv[i], "-p")) {
-			if(argc < (i + 2)) {
-				printf("Improper usage of -p.\nUsage: hallnavigator -p PORT\n");
-				return -1;
-			}
-			port = atof(argv[i+1]);
-			i+=2;
+		if(0/*!strcmp(argv[i], "-s"*/)) {
+			//no options currently
 		} else {
 			printf("Unrecognized option [%s]\n",argv[i]);
 			return -1;
 		}
 	}
 	
-	// Create a client object and connect to the server
-	hnd->client = playerc_client_create(NULL, server, port);
-  	if (playerc_client_connect(hnd->client) != 0) {
-		fprintf(stderr, "error: %s\n", playerc_error_str());
-		return -1;
-	}
-	printf("Connected to Robot\n");
-	
-	// Connect to all of the hardware devices by opening proxies, and enable devices
-	if(connectDevices(hnd)) {
-		fprintf(stderr, "Error connecting devices... Exiting\n");
-		return -1;
-	}
-	printf("Devices Enabled\n");
-	
-	
-	for (i = 0; i < 2000; i++) {
-		// Read data from the server and display current robot position
-		playerc_client_read(hnd->client);
-		
+	// robot is ready
 #ifdef DEBUG
-//printf("pos2d: %f %f %f  sonar: %f %f  ir: %f\n", hnd->pos2d->px, hnd->pos2d->py, hnd->pos2d->pa, nextSample(filt->sonarR, hnd->sonar->scan[0]), nextSample(filt->sonarL, hnd->sonar->scan[1]), nextSample(filt->ir, hnd->ir->data.ranges[0]));
-printf("sonar: %f(%f) %f(%f)  ir: %f(%f)\n", hnd->sonar->scan[0], nextSample(filt->sonarR, hnd->sonar->scan[0]), hnd->sonar->scan[1], nextSample(filt->sonarL, hnd->sonar->scan[1]), hnd->ir->data.ranges[0], nextSample(filt->ir, hnd->ir->data.ranges[0]));
+	printf("All connections established, ready to go\n");
 #endif
-	} 
 	
 	// Shutdown and tidy up.  Close all of the proxy handles
-	destroyHandles(hnd);
+	cleanup();
 	return 0;
-}
-
-int connectDevices(playerc_HANDLES_t * hnd) {
-	// Create a position2d proxy (device id "position2d:0") and susbscribe
-	// in read/write mode
-	hnd->pos2d = playerc_position2d_create(hnd->client, 0);
-	if (playerc_position2d_subscribe(hnd->pos2d, PLAYERC_OPEN_MODE) != 0) {
-		fprintf(stderr, "error: %s\n", playerc_error_str());
-		return -1;
-	}
-	
-	
-	hnd->bumper = playerc_bumper_create(hnd->client, 0);
-	if(playerc_bumper_subscribe(hnd->bumper, PLAYERC_OPEN_MODE)) {
-		fprintf(stderr, "error: %s\n", playerc_error_str());
-		return -1;
-	}
-	
-	hnd->sonar = playerc_sonar_create(hnd->client, 0);
-	if(playerc_sonar_subscribe(hnd->sonar, PLAYERC_OPEN_MODE)) {
-		fprintf(stderr, "error: %s\n", playerc_error_str());
-		return -1;
-	}
-	
-	hnd->ir = playerc_ir_create(hnd->client, 1);
-	if(playerc_ir_subscribe(hnd->ir, PLAYERC_OPEN_MODE)) {
-		fprintf(stderr, "error: %s\n", playerc_error_str());
-		return -1;
-	}
-	
-	hnd->power = playerc_power_create(hnd->client, 0);
-	if(playerc_power_subscribe(hnd->power, PLAYERC_OPEN_MODE)) {
-		fprintf(stderr, "error: %s\n", playerc_error_str());
-		return -1;
-	}
-
-
-	return 0;
-}
-
-void destroyHandles(playerc_HANDLES_t * hnd) {
-	playerc_position2d_unsubscribe(hnd->pos2d);
-	playerc_position2d_destroy(hnd->pos2d);
-	//playerc_position1d_unsubscribe(hnd->pos1d);
-	//playerc_position1d_destroy(hnd->pos1d);
-
-	playerc_bumper_unsubscribe(hnd->bumper);
-	playerc_bumper_destroy(hnd->bumper);
-	playerc_sonar_unsubscribe(hnd->sonar);
-	playerc_sonar_destroy(hnd->sonar);
-	playerc_ir_unsubscribe(hnd->ir);
-	playerc_ir_destroy(hnd->ir);
-	playerc_power_unsubscribe(hnd->power);
-	playerc_power_destroy(hnd->power);
-
-	playerc_client_disconnect(hnd->client);
-	playerc_client_destroy(hnd->client);
-	free(hnd);
 }
