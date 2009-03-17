@@ -6,9 +6,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#include <libplayerc/playerc.h>
 #include "PIDlib.h"
-#include "../FIRlib/FIRlib.h"
+#include "FIRlib.h"
 
 #define NUMERR 10
 

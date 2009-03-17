@@ -3,6 +3,7 @@
 //Main Hallway Navigator Executable
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <signal.h>
 #include "TurretAPI.h"
@@ -11,8 +12,8 @@
 #define FULLCONTROL 1
 #define DEBUG
 
-#include "../PIDlib/PIDlib.h"
-#include "../FIRlib/FIRlib.h"
+#include "PIDlib.h"
+#include "FIRlib.h"
 
 #define T_ANGLE 90.0
 #define COMPORT "/dev/ttyS2"
@@ -90,7 +91,7 @@ int main(int argc, const char **argv) {
 	// process command line args
 	i = 1;
 	while( i < argc ) {
-		if(0/*!strcmp(argv[i], "-s"*/)) {
+		if(0/*!strcmp(argv[i], "-s")*/) {
 			//no options currently
 		} else {
 			printf("Unrecognized option [%s]\n",argv[i]);

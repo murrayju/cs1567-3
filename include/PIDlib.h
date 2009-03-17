@@ -1,7 +1,6 @@
 //Justin Murray
 //PIDlib header
 
-#include <libplayerc/playerc.h>
 #include "create_comms.h"
 
 #define PI 3.141592654
@@ -19,14 +18,12 @@
 #define WALLS_NONE		3
 
 typedef struct _api_HANDLES {
-
 	create_comm_t *c;
 	turret_comm_t *t;
-	
 } api_HANDLES_t;
 
-int bumped(playerc_HANDLES_t *);
+int bumped(api_HANDLES_t *);
 
-double Move(playerc_HANDLES_t *, double, double);
+double Move(api_HANDLES_t *, double, double);
 
-double Turn(playerc_HANDLES_t *, double);
+double Turn(api_HANDLES_t *, double);

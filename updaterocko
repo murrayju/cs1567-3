@@ -1,10 +1,5 @@
 #!/bin/bash
-scp PIDlib/*.c jem86@rocko.cs.pitt.edu:~/proj2/PIDlib
-scp PIDlib/*.h jem86@rocko.cs.pitt.edu:~/proj2/PIDlib
-scp PIDlib/makefile jem86@rocko.cs.pitt.edu:~/proj2/PIDlib
-scp hallnavigator/*.c jem86@rocko.cs.pitt.edu:~/proj2/hallnavigator
-scp hallnavigator/*.h jem86@rocko.cs.pitt.edu:~/proj2/hallnavigator
-scp hallnavigator/makefile jem86@rocko.cs.pitt.edu:~/proj2/hallnavigator
-scp FIRlib/FIRlib.c jem86@rocko.cs.pitt.edu:~/proj2/FIRlib
-scp FIRlib/FIRlib.h jem86@rocko.cs.pitt.edu:~/proj2/FIRlib
-scp FIRlib/makefile jem86@rocko.cs.pitt.edu:~/proj2/FIRlib
+scp *.c jem86@rocko.cs.pitt.edu:~/proj2/
+scp include/*.h jem86@rocko.cs.pitt.edu:~/proj2/include/
+scp Makefile jem86@rocko.cs.pitt.edu:~/proj2/
+
