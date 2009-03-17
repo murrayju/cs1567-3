@@ -22,8 +22,8 @@ typedef struct pid_data_struct {
 	int doDiff;
 } pid_data;
 
-int checkInFront(playerc_HANDLES_t *, FilterData_t *);
-double hall_center_err(playerc_HANDLES_t *, FilterHandles_t *, int *);
+int checkInFront(api_HANDLES_t *, FilterData_t *);
+double hall_center_err(api_HANDLES_t *, FilterHandles_t *, int *);
 
 double prevError(pid_data * data) {
 	if(data->iErr == 0) {
@@ -72,16 +72,16 @@ double PID(pid_data * data) {
 	return (pTerm + dTerm + iTerm);
 }
 
-double tranError(playerc_position2d_t * pos2D, pid_data * data, double tX, double tY) {
-	double relX = pos2D->px - data->Xi; //X distance travelled
-	double relY = pos2D->py - data->Yi; //Y distance travelled
+double tranError(api_HANDLES_t * dev, pid_data * data, double tX, double tY) {
+	double relX = dev->c->ox - data->Xi; //X distance travelled
+	double relY = dev->c->oy - data->Yi; //Y distance travelled
 	double Xreal, Yreal, Xrem, Yrem;
 	double mew, theta, phi, error;
 	data->iErr = (data->iErr + 1) % NUMERR;
 
 	//Find the remaining distance from target
-	Xrem = tX - pos2D->px;
-	Yrem = tY - pos2D->py;
+	Xrem = tX - dev->c->ox;
+	Yrem = tY - dev->c->oy;
 	printf("Remaining real distance - x=%f y=%f\n",Xrem,Yrem);
 	
 	return data->errorHist[data->iErr] = dist(Xrem,Yrem);
@@ -142,16 +142,16 @@ double angleDiff(double A1, double A2) {
 	}
 }
 
-double targetRotError(playerc_position2d_t * pos2D, pid_data * data, double tX, double tY) {
-	double relX = pos2D->px - data->Xi; //X distance travelled
-	double relY = pos2D->py - data->Yi; //Y distance travelled
+double targetRotError(api_HANDLES_t * dev, pid_data * data, double tX, double tY) {
+	double relX = dev->c->ox - data->Xi; //X distance travelled
+	double relY = dev->c->oy - data->Yi; //Y distance travelled
 	double Xreal, Yreal, Xrem, Yrem;
 	double mew, theta, phi, error;
 	data->iErr = (data->iErr + 1) % NUMERR;
 
 	//find the remaining distance to the target
-	Xrem = tX - pos2D->px;
-	Yrem = tY - pos2D->py;
+	Xrem = tX - dev->c->ox;
+	Yrem = tY - dev->c->oy;
 	
 	//find the correct angle from pos to target
 	//phi = atan2(Yrem, Xrem);
@@ -163,7 +163,7 @@ double targetRotError(playerc_position2d_t * pos2D, pid_data * data, double tX, 
 		}
 	} else if(Xrem > 0.0) {
 		phi = atan(Yrem / Xrem);
-	} else { //if(Xrem < 0.0) {
+	} else {
 		if(Yrem >= 0.0) {
 			phi = PI + atan(Yrem / Xrem);
 		} else {
@@ -171,34 +171,29 @@ double targetRotError(playerc_position2d_t * pos2D, pid_data * data, double tX, 
 		}
 	}
 	
-	//error = phi - pos2D->pa;
-	error = angleDiff(phi, pos2D->pa);
+	error = angleDiff(phi, dev->c->oa);
 	printf("TRE: dist=(%f,%f) phi=%f err=%f\n",Xrem,Yrem,phi,error);
 	return data->errorHist[data->iErr] = error;
 }
 
-double rotError(playerc_position2d_t * pos2D, pid_data * data, double tA) {
-	double relA = pos2D->pa;
+double rotError(api_HANDLES_t * dev, pid_data * data, double tA) {
+	double relA = dev->c->oa;
 	double error;
 	
 	data->iErr = (data->iErr + 1) % NUMERR;
-	error = angleDiff(tA, pos2D->pa);
+	error = angleDiff(tA, dev->c->oa);
 	
 	return data->errorHist[data->iErr] = error;
 }
 
 
-int bumped(playerc_HANDLES_t * hands) {
-#ifdef stage_environment
-	return 0;
-#else
+int bumped(api_HANDLES_t * dev) {
 	static int storeBump = 0;
 	if(storeBump) {
 		return 1;
 	} else {
-		return storeBump = (hands->bumper->bumpers[0] || hands->bumper->bumpers[1]);
+		return storeBump = (dev->c->bumper_left || dev->c->bumper_right);
 	}
-#endif
 }
 
 double angleMultiplier(double v) {
@@ -211,7 +206,7 @@ double angleMultiplier(double v) {
 	}
 }
 
-double Move(playerc_HANDLES_t * hands, double X, double Y) {
+double Move(api_HANDLES_t * dev, double X, double Y) {
 	double tError, rError, vX, vA;
 	pid_data tranData, rotData;
 	
@@ -232,7 +227,9 @@ double Move(playerc_HANDLES_t * hands, double X, double Y) {
 	rotData.tol = 0.005;
 	rotData.maxI = 10;
 	
-	playerc_client_read(hands->client);
+	create_get_sensors (dev, .1);
+	
+	//finish refractoring code here!!!
 	
 	//Store initial position info
 	tranData.Xi = hands->pos2d->px;
@@ -271,7 +268,7 @@ double Move(playerc_HANDLES_t * hands, double X, double Y) {
 	return tranError(hands->pos2d, &tranData, X, Y);
 }
 
-double Turn(playerc_HANDLES_t * hands, double A) {
+double Turn(api_HANDLES_t * hands, double A) {
 	double rError, vA;
 	pid_data rotData;
 	
@@ -305,7 +302,7 @@ double Turn(playerc_HANDLES_t * hands, double A) {
 	return rotError(hands->pos2d, &rotData, A);
 }
 
-double hall_center_err(playerc_HANDLES_t * hands, FilterHandles_t * filt, int * walls) {
+double hall_center_err(api_HANDLES_t * hands, FilterHandles_t * filt, int * walls) {
 	/*This assumes that sonar:0 is on the right of the robot when looking at it
 	from above and sonar:1 is on the left
 	Negative error means too far to the right and positive means to far left*/
@@ -332,7 +329,7 @@ double hall_center_err(playerc_HANDLES_t * hands, FilterHandles_t * filt, int * 
 	return error;
 }
 
-int checkInFront(playerc_HANDLES_t * hands,FilterData_t *filter) {
+int checkInFront(api_HANDLES_t * hands,FilterData_t *filter) {
 	/*
 	 *	This function takes the ir handle and filter, updates the ir filter data 
 	 *	using the handle and then checkes to see if the updated value is less
