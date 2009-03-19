@@ -1,6 +1,7 @@
 //Justin Murray
 //PIDlib header
 
+#include "TurretAPI.h"
 #include "create_comms.h"
 
 #define PI 3.141592654
@@ -10,6 +11,8 @@
 #define HALL_WIDTH 182 //width of hallway in centimeters
 #define HALL_VAR 200	//hallway sonar max value acceptable
 #define IR_VAR 35.0		//ir sensor variance
+
+#define TIMEOUT 0.1
 
 // Wall status defines
 #define WALLS_BOTH		0

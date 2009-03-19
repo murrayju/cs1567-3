@@ -7,7 +7,7 @@
 #include <string.h>
 #include <signal.h>
 #include "TurretAPI.h"
-#include "create_coms.h"
+#include "create_comms.h"
 
 #define FULLCONTROL 1
 #define DEBUG
@@ -17,6 +17,8 @@
 
 #define T_ANGLE 90.0
 #define COMPORT "/dev/ttyS2"
+
+extern int bumped(api_HANDLES_t *);
 
 //Global handles so they can be used by sighandle
 api_HANDLES_t * hands;
@@ -103,7 +105,25 @@ int main(int argc, const char **argv) {
 #ifdef DEBUG
 	printf("All connections established, ready to go\n");
 #endif
+	//Rotate the Servo
+	turret_SetServo(hands->t, T_ANGLE);
+	while(!bumped(hands)) {
+		create_get_sensors(hands->c, TIMEOUT);
+		turret_get_sonar(hands->t);
+		turret_get_ir(hands->t);
+		create_print(hands->c);
+		printf("IR: %d   %d\tSonar: %d   %d\n",hands->t->ir[0],hands->t->ir[1],hands->t->sonar[0],hands->t->sonar[1]);
+		if(hands->t->ir[0] < 35) {
+			create_set_speeds(hands->c, 0, 0);
+#ifdef DEBUG
+			printf("Obstruction detected by IR\n");
+#endif
+		} else {
+			create_set_speeds(hands->c, 5, 0);
+		}
+	}
 	
+
 	// Shutdown and tidy up.  Close all of the proxy handles
 	cleanup();
 	return 0;
