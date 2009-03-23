@@ -5,7 +5,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-
 #include "FIRlib.h"
 
 double nextSample(FilterData_t * f, double nextVal) {
@@ -66,4 +65,10 @@ FilterData_t * initializeFilter(int type) {
 		f->max = SONAR_MAX;
 	}
 	return f;
+}
+
+void filterSonar(api_HANDLES_t * dev, FilterHandles_t * filter, double * sonarL, double * sonarR) {
+	turret_get_sonar(dev->t);
+	*sonarL = nextSample(filter->sonarL, dev->t->sonar[0]);
+	*sonarR = nextSample(filter->sonarR, dev->t->sonar[1]);
 }

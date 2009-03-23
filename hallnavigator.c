@@ -6,19 +6,16 @@
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
-#include "TurretAPI.h"
-#include "create_comms.h"
+#include "types.h"
 
 #define FULLCONTROL 1
-#define DEBUG
 
 #include "PIDlib.h"
 #include "FIRlib.h"
 
-#define T_ANGLE 90.0
-#define COMPORT "/dev/ttyS2"
-
-extern int bumped(api_HANDLES_t *);
+//Define the default set of waypoints
+#define NUM_WAYPOINTS 9
+#define WAYPOINT_ARRAY {7.3152,0.0, 7.3152,7.62, 26.21,7.62, 26.21,-3.048, 30.1752,-3.048, 30.1752,-12.192, 7.3152,-12.192, 7.3152,0, 0,0}
 
 //Global handles so they can be used by sighandle
 api_HANDLES_t * hands;
@@ -39,11 +36,15 @@ void sighandle(int sig) {
 	//stop the robot when program dies
 	printf("Signal caught (%d), shutting down\n",sig);
 	cleanup();
+	exit(-2);
 }
 
 int main(int argc, const char **argv) {
 	int i, a;
 	int i2c_fd;
+	coordData_t * waypoints;
+	int numWaypts = NUM_WAYPOINTS;
+	double w[] = WAYPOINT_ARRAY;
 	
 	//Set signals to handle
 	signal(SIGINT, &sighandle);
@@ -58,6 +59,15 @@ int main(int argc, const char **argv) {
 	if((filt = malloc(sizeof(FilterHandles_t))) == NULL) {
 		fprintf(stderr,"Error calling malloc\n");
 		return -1;
+	}
+	if((waypoints = malloc(sizeof(coordData_t) * numWaypts)) == NULL) {
+		fprintf(stderr,"Error calling malloc\n");
+		return -1;
+	}
+	
+	for(i=0; i<numWaypts; i++) {
+		waypoints[i].X = w[i*2];
+		waypoints[i].Y = w[i*2+1];
 	}
 	
 	// allocate devices
@@ -107,22 +117,12 @@ int main(int argc, const char **argv) {
 #endif
 	//Rotate the Servo
 	turret_SetServo(hands->t, T_ANGLE);
-	while(!bumped(hands)) {
-		create_get_sensors(hands->c, TIMEOUT);
-		turret_get_sonar(hands->t);
-		turret_get_ir(hands->t);
-		create_print(hands->c);
-		printf("IR: %d   %d\tSonar: %d   %d\n",hands->t->ir[0],hands->t->ir[1],hands->t->sonar[0],hands->t->sonar[1]);
-		if(hands->t->ir[0] < 35) {
-			create_set_speeds(hands->c, 0, 0);
+	for(i=0; i<numWaypts; i++) {
+		Move(hands,filt,waypoints[i].X,waypoints[i].Y);
 #ifdef DEBUG
-			printf("Obstruction detected by IR\n");
+		printf("\nArrived at waypoint %d\n\n", i+1);
 #endif
-		} else {
-			create_set_speeds(hands->c, 5, 0);
-		}
 	}
-	
 
 	// Shutdown and tidy up.  Close all of the proxy handles
 	cleanup();

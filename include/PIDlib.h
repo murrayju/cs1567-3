@@ -1,32 +1,11 @@
 //Justin Murray
 //PIDlib header
 
-#include "TurretAPI.h"
-#include "create_comms.h"
-
-#define PI 3.141592654
-
-#define ABSOLUTE_COORD
-
-#define HALL_WIDTH 182 //width of hallway in centimeters
-#define HALL_VAR 200	//hallway sonar max value acceptable
-#define IR_VAR 35.0		//ir sensor variance
-
-#define TIMEOUT 0.1
-
-// Wall status defines
-#define WALLS_BOTH		0
-#define WALLS_LEFT_ONLY		1
-#define WALLS_RIGHT_ONLY	2
-#define WALLS_NONE		3
-
-typedef struct _api_HANDLES {
-	create_comm_t *c;
-	turret_comm_t *t;
-} api_HANDLES_t;
+#include "types.h"
 
 int bumped(api_HANDLES_t *);
 
-double Move(api_HANDLES_t *, double, double);
+double Move(api_HANDLES_t *, FilterHandles_t *, double, double);
 
-double Turn(api_HANDLES_t *, double);
+double Turn(api_HANDLES_t *, FilterHandles_t *, double);
+double Turn2(api_HANDLES_t * dev, FilterHandles_t * filter, double A, int R);

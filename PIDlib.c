@@ -3,6 +3,7 @@
 //PID control functions
 
 #include <stdio.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -21,8 +22,8 @@ typedef struct pid_data_struct {
 	int doDiff;
 } pid_data;
 
-int checkInFront(api_HANDLES_t *, FilterData_t *);
-double hall_center_err(api_HANDLES_t *, FilterHandles_t *, int *);
+int checkInFront(api_HANDLES_t *, FilterHandles_t *);
+double hall_center_err(double, double, int *, pid_data *);
 
 double prevError(pid_data * data) {
 	if(data->iErr == 0) {
@@ -66,7 +67,7 @@ double PID(pid_data * data) {
 	
 	iTerm = data->Ki * errorSum(data);
 	
-	printf("PID P=%f D=%f I=%f total=%f\n",pTerm, dTerm, iTerm, (pTerm+dTerm+iTerm));
+	//printf("PID P=%f D=%f I=%f total=%f\n",pTerm, dTerm, iTerm, (pTerm+dTerm+iTerm));
 	
 	return (pTerm + dTerm + iTerm);
 }
@@ -81,7 +82,7 @@ double tranError(api_HANDLES_t * dev, pid_data * data, double tX, double tY) {
 	//Find the remaining distance from target
 	Xrem = tX - dev->c->ox;
 	Yrem = tY - dev->c->oy;
-	printf("Remaining real distance - x=%f y=%f\n",Xrem,Yrem);
+	//printf("Remaining real distance - x=%f y=%f\n",Xrem,Yrem);
 	
 	return data->errorHist[data->iErr] = dist(Xrem,Yrem);
 }
@@ -170,7 +171,7 @@ double targetRotError(api_HANDLES_t * dev, pid_data * data, double tX, double tY
 	}
 	
 	error = angleDiff(phi, dev->c->oa);
-	printf("TRE: dist=(%f,%f) phi=%f err=%f\n",Xrem,Yrem,phi,error);
+	//printf("TRE: dist=(%f,%f) phi=%f err=%f\n",Xrem,Yrem,phi,error);
 	return data->errorHist[data->iErr] = error;
 }
 
@@ -204,31 +205,40 @@ double angleMultiplier(double v) {
 	}
 }
 
-double Move(api_HANDLES_t * dev, double X, double Y) {
+double Move(api_HANDLES_t * dev, FilterHandles_t * filter, double X, double Y) {
 	double tError, rError, vX, vA;
-	pid_data tranData, rotData;
+	double sonarL, sonarR;
+	double hallErr;
+	int walls;
+	pid_data tranData, rotData, wallData;
 	
 	//clear structs
 	memset(&tranData, 0, sizeof(pid_data));
 	memset(&rotData, 0, sizeof(pid_data));
+	memset(&wallData, 0, sizeof(pid_data));
 	
 	//Set parameters
 	tranData.Kp = 0.9;
 	tranData.Kd = 1.0;
 	tranData.Ki = 0.01;
-	tranData.tol = 0.01;
+	tranData.tol = 0.5;
 	tranData.maxI = 10;
 	
-	rotData.Kp = 2.0;
-	rotData.Kd = 4.0;
-	rotData.Ki = .01;
-	rotData.tol = 0.005;
+	rotData.Kp = 0.5;
+	rotData.Kd = 1.0;
+	rotData.Ki = .005;
+	rotData.tol = 0.01;
 	rotData.maxI = 10;
 	
-	create_get_sensors (dev, TIMEOUT);
+	wallData.Kp = 0.006;
+	wallData.Kd = 0.006;
+	wallData.Ki = .00001;
+	wallData.tol = 0.00005;
+	wallData.maxI = 0.001;
 	
-	//finish refractoring code here!!!
-	
+	create_get_sensors(dev->c, TIMEOUT);
+	filterSonar(dev,filter,&sonarL,&sonarR);
+
 	//Store initial position info
 	tranData.Xi = dev->c->ox;
 	tranData.Yi = dev->c->oy;
@@ -239,6 +249,24 @@ double Move(api_HANDLES_t * dev, double X, double Y) {
 	rotData.Ai = dev->c->oa;
 	
 	while(!bumped(dev) && (tError = tranError(dev, &tranData, X, Y)) > tranData.tol) {
+		//Make sure the path is clear ahead
+		if(checkInFront(dev, filter)) {
+			create_set_speeds(dev->c, 0, 0);
+#ifdef DEBUG
+			printf("Obstruction detected by IR");
+#endif
+			while(checkInFront(dev, filter) && !bumped(dev)) {
+#ifdef DEBUG
+				printf(".");
+				fflush(stdout);
+#endif
+			}
+#ifdef DEBUG
+			printf("\n");
+#endif
+		}
+		
+		hallErr = hall_center_err(sonarL,sonarR,&walls,&wallData);
 		rError = targetRotError(dev,&rotData, X, Y);
 		if(rError > 0.75*PI || rError < -0.75*PI) {
 			//We passed it up, error should be negative
@@ -252,65 +280,35 @@ double Move(api_HANDLES_t * dev, double X, double Y) {
 			rotData.errorHist[rotData.iErr] = rError;
 			//printf("Backwards! T: %f  R: %f\n",tError,rError);
 		}
+		if(walls == WALLS_NONE) {
+			//We must rely on the wheel encoders	
+			vA = PID(&rotData);
+		} else {
+			//Set angular velocity based on wall data
+			vA = PID(&rotData) + PID(&wallData);
+		}
 		vX = PID(&tranData);
-		vA = PID(&rotData) * angleMultiplier(vX);
+		vA *= angleMultiplier(vX);
 				
-		create_set_speeds (dev, vX, vA);     //set new speeds
-		create_get_sensors (dev, TIMEOUT); //update position from sensors
-		
-		/*printf("VX: %f  VA: %f  Terror: %f  Rerror: %f  position : %f %f %f  bumpers: %d %d\n", vX, vA, tError, rError, hands->pos2d->px, hands->pos2d->py, hands->pos2d->pa, hands->bumper->bumpers[0], hands->bumper->bumpers[1]);*/
+		create_set_speeds(dev->c, vX, vA);       //set new velocities
+#ifdef DEBUG
+printf("VX: %2.3f  VA: %2.3f  Te: %2.3f  Re: %2.3f  pos: %2.3f %2.3f %2.3f  sonar: %3.3f %3.3f He: %2.3f  walls: %d\n", vX, vA, tError, rError, dev->c->ox, dev->c->oy, dev->c->oa, sonarL, sonarR, hallErr, walls);
+#endif
+		usleep(100000);
+		create_get_sensors(dev->c, TIMEOUT);  	 //update odometer sensor data
+		filterSonar(dev,filter,&sonarL,&sonarR); //get new filtered data from sonar
 	} 
 	
-	create_set_speeds (dev, 0, 0);  //STOP!
-	create_get_sensors (dev, TIMEOUT);//update position from sensors
+	//create_set_speeds(dev->c, 0, 0);  //STOP!
+	create_get_sensors(dev->c, TIMEOUT);//update position from sensors
 	
 	return tranError(dev, &tranData, X, Y);
 }
 
-double Turn(api_HANDLES_t * dev, double A) {
-	double rError, vA;
-	pid_data rotData;
-	
-	//clear struct
-	memset(&rotData, 0, sizeof(pid_data));
-	
-	//Set parameters
-	rotData.Kp = 1.1;
-	rotData.Kd = 0.05;
-	rotData.Ki = 0.06;
-	rotData.tol = 0.005;
-	rotData.maxI = 0.5;
-	
-	create_get_sensors (dev, TIMEOUT);
-	
-	//Store initial position info
-	rotData.Xi = dev->c->ox;
-	rotData.Yi = dev->c->oy;
-	rotData.Ai = dev->c->oa;
-	
-	while(!bumped(dev) && fabs(rError = rotError(dev,&rotData, A)) > rotData.tol) {
-		vA = PID(&rotData);
-		create_set_speeds (dev, 0, vA);  //set new speeds
-		create_get_sensors (dev, TIMEOUT); //update position from sensors
-		/*
-		printf("VA: %f  Rerror: %f  position : %f %f %f  bumpers: %d %d\n", vA, rError, hands->pos2d->px, hands->pos2d->py, hands->pos2d->pa, hands->bumper->bumpers[0], hands->bumper->bumpers[1]);*/
-	} 
-	
-	create_set_speeds (dev, 0, 0); //STOP!
-	create_get_sensors (dev, TIMEOUT); //update position from sensors
-	return rotError(dev, &rotData, A);
-}
-
-double hall_center_err(api_HANDLES_t * dev, FilterHandles_t * filt, int * walls) {
-	/*This assumes that sonar:0 is on the right of the robot when looking at it
-	from above and sonar:1 is on the left
-	Negative error means too far to the right and positive means to far left*/
-	double right;
-	double left;
+double hall_center_err(double left, double right, int * walls, pid_data * data) {
+	/*Negative error means too far to the right and positive means to far left*/
 	double error;
-	
-	right = nextSample(filt->sonarR, dev->t->sonar[0]);
-	left = nextSample(filt->sonarL,dev->t->sonar[1]);
+	data->iErr = (data->iErr + 1) % NUMERR;
 	
 	if(right <= HALL_VAR && left <= HALL_VAR) {	//both sonar can see a wall
 		error = right - left;
@@ -325,21 +323,19 @@ double hall_center_err(api_HANDLES_t * dev, FilterHandles_t * filt, int * walls)
 		error = 0.0;	// Stay in center
 		*walls = WALLS_NONE;
 	}
-	return error;
+	return (data->errorHist[data->iErr] = -error);
 }
 
-int checkInFront(api_HANDLES_t * dev,FilterData_t *filter) {
+int checkInFront(api_HANDLES_t * dev, FilterHandles_t * filter) {
 	/*
 	 *	This function takes the ir handle and filter, updates the ir filter data 
 	 *	using the handle and then checkes to see if the updated value is less
 	 *	than the set variance.  If it is it returns a 1 indicating something is
 	 *	in front of it, and it needs to stop and wait
 	 */
-	int value;
-	
-	value = nextSample(filter, dev->t->ir[0]);
-	
-	if(value <= IR_VAR) {
+	turret_get_ir(dev->t);
+
+	if(nextSample(filter->ir, dev->t->ir[1]) <= IR_VAR) {
 		return 1;
 	}
 	return 0;
