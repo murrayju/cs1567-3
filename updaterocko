@@ -2,4 +2,3 @@
 scp *.c jem86@rocko.cs.pitt.edu:~/proj2/
 scp include/*.h jem86@rocko.cs.pitt.edu:~/proj2/include/
 scp Makefile jem86@rocko.cs.pitt.edu:~/proj2/
-
