@@ -49,7 +49,6 @@ FilterData_t * initializeFilter(int type) {
     int i;
     static double ir_coeffs[] = FILT_IR_COEFFS;
     static double sonar_coeffs[] = FILT_SONAR_COEFFS;
-    static double odo_coeffs[] = FILT_ODO_COEFFS;
     FilterData_t * f = malloc(sizeof(FilterData_t));
 
     // Initialize everything to zero
@@ -65,10 +64,6 @@ FilterData_t * initializeFilter(int type) {
         memcpy(f->coefficients, sonar_coeffs, FILT_SONAR_SAMPLES * sizeof(double));
         f->num_samples = FILT_SONAR_SAMPLES;
         f->max = FILT_SONAR_MAX;
-    } else if(type == FILT_ODO) {
-        memcpy(f->coefficients, odo_coeffs, FILT_ODO_SAMPLES * sizeof(double));
-        f->num_samples = FILT_ODO_SAMPLES;
-        f->max = FILT_ODO_MAX;
     }
     return f;
 }

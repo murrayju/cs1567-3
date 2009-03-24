@@ -230,41 +230,46 @@ pidData_t * initializePID(int type) {
     return p;
 }
 
-void correctOdomErr(api_HANDLES_t * dev, FilterHandles_t * filter, double sonarErr, double tX, double tY, int walls, double * adjX, double * adjY) {
+void correctOdomErr(api_HANDLES_t * dev, double sonarErr, double tX, double tY, int walls, double * adjX, double * adjY) {
     //Determine current heading
     double a = dev->c->oa;
     double odoErr;
-    static double devErr;
+    static double devErrX = 0.0, devErrY = 0.0;
     if(a > -PI/4.0 && a <= PI/4.0) {
         //Heading NORTH
         odoErr = dev->c->oy - tY;
-        if(walls == WALLS_BOTH) {
-            devErr = nextSample(filter->yCorrect, (odoErr + sonarErr));
+        if(walls == WALLS_BOTH && abs(odoErr) < 6.0) {
+            devErrY = (odoErr + sonarErr/100.0);
         }
-        *adjY = dev->c->oy - devErr;
+        *adjY = dev->c->oy - devErrY;
+        *adjX = dev->c->ox - devErrX;
+        //printf("Heading north: odoErr: %f devErr: %f sonarErr: %f tX: %f tY: %f Y: %f adjY: %f\n",odoErr,devErrY,sonarErr/100.0,tX,tY,dev->c->oy,adjY);
     } else if(a > PI/4.0 && a <= PI*0.75) {
         //Heading WEST
         odoErr = dev->c->ox - tX;
-        if(walls == WALLS_BOTH) {
-            devErr = nextSample(filter->xCorrect, (odoErr - sonarErr));
+        if(walls == WALLS_BOTH && abs(odoErr) < 6.0) {
+            devErrX = (odoErr - sonarErr/100.0);
         }
-        *adjX = dev->c->ox - devErr;
+        *adjY = dev->c->oy - devErrY;
+        *adjX = dev->c->ox - devErrX;
 
     } else if(a > -PI*0.75 && PI <= -PI/4.0) {
         //Heading EAST
         odoErr = dev->c->ox - tX;
-        if(walls == WALLS_BOTH) {
-            devErr = nextSample(filter->xCorrect, (odoErr + sonarErr));
+        if(walls == WALLS_BOTH && abs(odoErr) < 6.0) {
+            devErrX = (odoErr + sonarErr/100.0);
         }
-        *adjX = dev->c->ox - devErr;
+        *adjY = dev->c->oy - devErrY;
+        *adjX = dev->c->ox - devErrX;
 
     } else {
         //Heading SOUTH
         odoErr = dev->c->oy - tY;
-        if(walls == WALLS_BOTH) {
-            devErr = nextSample(filter->yCorrect, (odoErr - sonarErr));
+        if(walls == WALLS_BOTH && abs(odoErr) < 6.0) {
+            devErrY = (odoErr - sonarErr/100.0);
         }
-        *adjY = dev->c->oy - devErr;
+        *adjY = dev->c->oy - devErrY;
+        *adjX = dev->c->ox - devErrX;
     }
 }
 
@@ -281,56 +286,57 @@ double Move(api_HANDLES_t * dev, FilterHandles_t * filter, pidHandles_t * pids, 
 
     while(!bumped(dev) && !arrived) {
         //Make sure the path is clear ahead
-        if(checkInFront(dev, filter)) {
+        if(0 && checkInFront(dev, filter)) {
             create_set_speeds(dev->c, 0, 0);
             #ifdef DEBUG
             printf("Obstruction detected by IR");
             #endif
-            while(checkInFront(dev, filter) && !bumped(dev)) {
+            while(!bumped(dev) && checkInFront(dev, filter)) {
                 #ifdef DEBUG
                 printf(".");
                 fflush(stdout);
                 #endif
+                usleep(100000);  //sleep long enough for the sensors to refresh
             }
             #ifdef DEBUG
             printf("\n");
             #endif
-        } else {
-            hError = hall_center_err(sonarL,sonarR,&walls,pids->sonar);
-            correctOdomErr(dev, filter, hError, X, Y, walls, &adjX, &adjY);
-            tError = tranError(adjX, adjY, pids->trans, X, Y);
-            rError = targetRotError(adjX, adjY, dev->c->oa,pids->angle, X, Y);
-            if(rError > 0.75*PI || rError < -0.75*PI) {
-                //We passed it up, error should be negative
-                tError = -tError;
-                pids->trans->errorHist[pids->trans->iErr] = tError;
-                if(rError < 0) {
-                    rError += PI;
-                } else {
-                    rError -= PI;
-                }
-                pids->angle->errorHist[pids->angle->iErr] = rError;
-                //printf("Backwards! T: %f  R: %f\n",tError,rError);
-            }
-            if(walls == WALLS_NONE) {
-                //We must rely on the wheel encoders
-                vA = PID(pids->angle);
-            } else {
-                //Set angular velocity based on wall data
-                vA = PID(pids->angle) + PID(pids->sonar);
-            }
-            vX = PID(pids->trans);
-            vA *= angleMultiplier(vX);
-
-            create_set_speeds(dev->c, vX, vA);       //set new velocities
-            #ifdef DEBUG
-            printf("VX: %2.3f  VA: %2.3f  Te: %2.3f  Re: %2.3f  pos: %2.3f %2.3f %2.3f  adj: %2.3f %2.3f  sonar: %3.3f %3.3f He: %2.3f  walls: %d\n", vX, vA, tError, rError, dev->c->ox, dev->c->oy, dev->c->oa, adjX, adjY, sonarL, sonarR, hError, walls);
-            #endif
         }
+        hError = hall_center_err(sonarL,sonarR,&walls,pids->sonar);
+        correctOdomErr(dev, hError, X, Y, walls, &adjX, &adjY);
+        tError = tranError(adjX, adjY, pids->trans, X, Y);
+        rError = targetRotError(adjX, adjY, dev->c->oa,pids->angle, X, Y);
+        if(rError > 0.75*PI || rError < -0.75*PI) {
+            //We passed it up, error should be negative
+            tError = -tError;
+            pids->trans->errorHist[pids->trans->iErr] = tError;
+            if(rError < 0) {
+                rError += PI;
+            } else {
+                rError -= PI;
+            }
+            pids->angle->errorHist[pids->angle->iErr] = rError;
+            //printf("Backwards! T: %f  R: %f\n",tError,rError);
+        }
+        if(walls == WALLS_NONE) {
+            //We must rely on the wheel encoders
+            vA = PID(pids->angle);
+        } else {
+            //Set angular velocity based on wall data
+            vA = /*PID(pids->angle) + */PID(pids->sonar);
+        }
+        vX = PID(pids->trans);
+        vA *= angleMultiplier(vX);
+
+        create_set_speeds(dev->c, vX, vA);       //set new velocities
+        #ifdef DEBUG
+        printf("VX: %2.3f  VA: %2.3f  Te: %2.3f  Re: %2.3f  pos: %2.3f %2.3f %2.3f  adj: %2.3f %2.3f  sonar: %3.3f %3.3f He: %2.3f  walls: %d\n", vX, vA, tError, rError, dev->c->ox, dev->c->oy, dev->c->oa, adjX, adjY, sonarL, sonarR, hError, walls);
+        #endif
+
         usleep(100000);  //sleep long enough for the sensors to refresh
         create_get_sensors(dev->c, TIMEOUT);     //update odometer sensor data
         filterSonar(dev,filter,&sonarL,&sonarR); //get new filtered data from sonar
-        if(tError <= pids->trans->tol) { arrived = 1; } //Check if we made it yet
+        if(abs(tError) <= pids->trans->tol) { arrived = 1; } //Check if we made it yet
     }
 
     create_get_sensors(dev->c, TIMEOUT);//update position from sensors

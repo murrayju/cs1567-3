@@ -108,8 +108,6 @@ int main(int argc, const char **argv) {
     filt->sonarR = initializeFilter(FILT_SONAR);
     filt->sonarL = initializeFilter(FILT_SONAR);
     filt->ir = initializeFilter(FILT_IR);
-    filt->xCorrect = initializeFilter(FILT_ODO);
-    filt->yCorrect = initializeFilter(FILT_ODO);
 
     //Initialize PID structs
     pids->trans = initializePID(TRANS_PID);
@@ -156,9 +154,10 @@ int main(int argc, const char **argv) {
 
     //Iterate over all of the waypoints
     for(i=0; i<numWaypts; i++) {
+		printf("Waypoint %d (%f,%f).\n",i+1,waypoints[i].X,waypoints[i].Y);
         Move(hands,filt,pids,waypoints[i].X,waypoints[i].Y);
 #ifdef DEBUG
-        printf("\nArrived at waypoint %d.(%f,%f)\n\n", i+1,waypoints[i].X,waypoints[i].Y);
+        printf("\nArrived at waypoint %d (%f,%f).\n\n", i+1,waypoints[i].X,waypoints[i].Y);
 #endif
     }
 
