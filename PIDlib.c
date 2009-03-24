@@ -10,22 +10,7 @@
 #include "PIDlib.h"
 #include "FIRlib.h"
 
-#define NUMERR 10
-
-typedef struct pid_data_struct {
-    double Kp, Kd, Ki;
-    double errorHist[NUMERR];
-    int iErr;
-    double tol;
-    double maxI;
-    double Xi, Yi, Ai;
-    int doDiff;
-} pid_data;
-
-int checkInFront(api_HANDLES_t *, FilterHandles_t *);
-double hall_center_err(double, double, int *, pid_data *);
-
-double prevError(pid_data * data) {
+double prevError(pidData_t * data) {
     if(data->iErr == 0) {
         return data->errorHist[NUMERR - 1];
     } else {
@@ -33,7 +18,7 @@ double prevError(pid_data * data) {
     }
 }
 
-double errorSum(pid_data * data) {
+double errorSum(pidData_t * data) {
     double sum = 0;
     int i;
     for(i=0; i<NUMERR; i++) {
@@ -51,7 +36,7 @@ double dist(double x, double y) {
     return sqrt( x*x + y*y);
 }
 
-double PID(pid_data * data) {
+double PID(pidData_t * data) {
     double pTerm, dTerm, iTerm;
 
     double error = data->errorHist[data->iErr];
@@ -67,22 +52,16 @@ double PID(pid_data * data) {
 
     iTerm = data->Ki * errorSum(data);
 
-    //printf("PID P=%f D=%f I=%f total=%f\n",pTerm, dTerm, iTerm, (pTerm+dTerm+iTerm));
-
     return (pTerm + dTerm + iTerm);
 }
 
-double tranError(api_HANDLES_t * dev, pid_data * data, double tX, double tY) {
-    double relX = dev->c->ox - data->Xi; //X distance travelled
-    double relY = dev->c->oy - data->Yi; //Y distance travelled
-    double Xreal, Yreal, Xrem, Yrem;
-    double mew, theta, phi, error;
+double tranError(double cX, double cY, pidData_t * data, double tX, double tY) {
+    double Xrem, Yrem;
     data->iErr = (data->iErr + 1) % NUMERR;
 
     //Find the remaining distance from target
-    Xrem = tX - dev->c->ox;
-    Yrem = tY - dev->c->oy;
-    //printf("Remaining real distance - x=%f y=%f\n",Xrem,Yrem);
+    Xrem = tX - cX;
+    Yrem = tY - cY;
 
     return data->errorHist[data->iErr] = dist(Xrem,Yrem);
 }
@@ -142,16 +121,14 @@ double angleDiff(double A1, double A2) {
     }
 }
 
-double targetRotError(api_HANDLES_t * dev, pid_data * data, double tX, double tY) {
-    double relX = dev->c->ox - data->Xi; //X distance travelled
-    double relY = dev->c->oy - data->Yi; //Y distance travelled
-    double Xreal, Yreal, Xrem, Yrem;
-    double mew, theta, phi, error;
+double targetRotError(double cX, double cY, double cA, pidData_t * data, double tX, double tY) {
+    double Xrem, Yrem;
+    double phi;
     data->iErr = (data->iErr + 1) % NUMERR;
 
     //find the remaining distance to the target
-    Xrem = tX - dev->c->ox;
-    Yrem = tY - dev->c->oy;
+    Xrem = tX - cX;
+    Yrem = tY - cY;
 
     //find the correct angle from pos to target
     if(Xrem == 0.0) {
@@ -170,21 +147,8 @@ double targetRotError(api_HANDLES_t * dev, pid_data * data, double tX, double tY
         }
     }
 
-    error = angleDiff(phi, dev->c->oa);
-    //printf("TRE: dist=(%f,%f) phi=%f err=%f\n",Xrem,Yrem,phi,error);
-    return data->errorHist[data->iErr] = error;
+    return data->errorHist[data->iErr] = angleDiff(phi, cA);
 }
-
-double rotError(api_HANDLES_t * dev, pid_data * data, double tA) {
-    double relA = dev->c->oa;
-    double error;
-
-    data->iErr = (data->iErr + 1) % NUMERR;
-    error = angleDiff(tA, dev->c->oa);
-
-    return data->errorHist[data->iErr] = error;
-}
-
 
 int bumped(api_HANDLES_t * dev) {
     static int storeBump = 0;
@@ -205,106 +169,7 @@ double angleMultiplier(double v) {
     }
 }
 
-double Move(api_HANDLES_t * dev, FilterHandles_t * filter, double X, double Y) {
-    double tError, rError, vX, vA;
-    double sonarL, sonarR;
-    double hallErr;
-    int walls;
-    pid_data tranData, rotData, wallData;
-
-    //clear structs
-    memset(&tranData, 0, sizeof(pid_data));
-    memset(&rotData, 0, sizeof(pid_data));
-    memset(&wallData, 0, sizeof(pid_data));
-
-    //Set parameters
-    tranData.Kp = 0.9;
-    tranData.Kd = 1.0;
-    tranData.Ki = 0.01;
-    tranData.tol = 0.5; //This is the tolerance for hitting the target
-    tranData.maxI = 10;
-
-    rotData.Kp = 0.5;
-    rotData.Kd = 1.0;
-    rotData.Ki = .005;
-    rotData.tol = 0.01;
-    rotData.maxI = 10;
-
-    wallData.Kp = 0.006;
-    wallData.Kd = 0.006;
-    wallData.Ki = .00001;
-    wallData.tol = 0.00005;
-    wallData.maxI = 0.001;
-
-    create_get_sensors(dev->c, TIMEOUT);
-    filterSonar(dev,filter,&sonarL,&sonarR);
-
-    //Store initial position info
-    tranData.Xi = dev->c->ox;
-    tranData.Yi = dev->c->oy;
-    tranData.Ai = dev->c->oa;
-
-    rotData.Xi = dev->c->ox;
-    rotData.Yi = dev->c->oy;
-    rotData.Ai = dev->c->oa;
-
-    while(!bumped(dev) && (tError = tranError(dev, &tranData, X, Y)) > tranData.tol) {
-        //Make sure the path is clear ahead
-        if(checkInFront(dev, filter)) {
-            create_set_speeds(dev->c, 0, 0);
-            #ifdef DEBUG
-            printf("Obstruction detected by IR");
-            #endif
-            while(checkInFront(dev, filter) && !bumped(dev)) {
-                #ifdef DEBUG
-                printf(".");
-                fflush(stdout);
-                #endif
-            }
-            #ifdef DEBUG
-            printf("\n");
-            #endif
-        } else {
-            hallErr = hall_center_err(sonarL,sonarR,&walls,&wallData);
-            rError = targetRotError(dev,&rotData, X, Y);
-            if(rError > 0.75*PI || rError < -0.75*PI) {
-                //We passed it up, error should be negative
-                tError = -tError;
-                tranData.errorHist[tranData.iErr] = tError;
-                if(rError < 0) {
-                    rError += PI;
-                } else {
-                    rError -= PI;
-                }
-                rotData.errorHist[rotData.iErr] = rError;
-                //printf("Backwards! T: %f  R: %f\n",tError,rError);
-            }
-            if(walls == WALLS_NONE) {
-                //We must rely on the wheel encoders
-                vA = PID(&rotData);
-            } else {
-                //Set angular velocity based on wall data
-                vA = PID(&rotData) + PID(&wallData);
-            }
-            vX = PID(&tranData);
-            vA *= angleMultiplier(vX);
-
-            create_set_speeds(dev->c, vX, vA);       //set new velocities
-            #ifdef DEBUG
-            printf("VX: %2.3f  VA: %2.3f  Te: %2.3f  Re: %2.3f  pos: %2.3f %2.3f %2.3f  sonar: %3.3f %3.3f He: %2.3f  walls: %d\n", vX, vA, tError, rError, dev->c->ox, dev->c->oy, dev->c->oa, sonarL, sonarR, hallErr, walls);
-            #endif
-        }
-        usleep(100000);  //sleep long enough for the sensors to refresh
-        create_get_sensors(dev->c, TIMEOUT);     //update odometer sensor data
-        filterSonar(dev,filter,&sonarL,&sonarR); //get new filtered data from sonar
-    }
-
-    create_get_sensors(dev->c, TIMEOUT);//update position from sensors
-
-    return tranError(dev, &tranData, X, Y);
-}
-
-double hall_center_err(double left, double right, int * walls, pid_data * data) {
+double hall_center_err(double left, double right, int * walls, pidData_t * data) {
     /*Negative error means too far to the right and positive means to far left*/
     double error;
     data->iErr = (data->iErr + 1) % NUMERR;
@@ -338,4 +203,137 @@ int checkInFront(api_HANDLES_t * dev, FilterHandles_t * filter) {
         return 1;
     }
     return 0;
+}
+
+pidData_t * initializePID(int type) {
+    // This function initializes a pidData struct
+
+    int i;
+    static double trans_c[] = TRANS_PID_C;
+    static double angle_c[] = ANGLE_PID_C;
+    static double sonar_c[] = SONAR_PID_C;
+    pidData_t * p = malloc(sizeof(pidData_t));
+
+    if(p == NULL) { return NULL; }
+
+    // Initialize everything to zero
+    memset(p,0,sizeof(pidData_t));
+
+    // Copy the #defined coeffs into the struct
+    if(type == TRANS_PID) {
+        memcpy(p, trans_c, NUM_PID_C * sizeof(double));
+    } else if(type == ANGLE_PID) {
+        memcpy(p, angle_c, NUM_PID_C * sizeof(double));
+    } else if(type == SONAR_PID) {
+        memcpy(p, sonar_c, NUM_PID_C * sizeof(double));
+    }
+    return p;
+}
+
+void correctOdomErr(api_HANDLES_t * dev, FilterHandles_t * filter, double sonarErr, double tX, double tY, int walls, double * adjX, double * adjY) {
+    //Determine current heading
+    double a = dev->c->oa;
+    double odoErr;
+    static double devErr;
+    if(a > -PI/4.0 && a <= PI/4.0) {
+        //Heading NORTH
+        odoErr = dev->c->oy - tY;
+        if(walls == WALLS_BOTH) {
+            devErr = nextSample(filter->yCorrect, (odoErr + sonarErr));
+        }
+        *adjY = dev->c->oy - devErr;
+    } else if(a > PI/4.0 && a <= PI*0.75) {
+        //Heading WEST
+        odoErr = dev->c->ox - tX;
+        if(walls == WALLS_BOTH) {
+            devErr = nextSample(filter->xCorrect, (odoErr - sonarErr));
+        }
+        *adjX = dev->c->ox - devErr;
+
+    } else if(a > -PI*0.75 && PI <= -PI/4.0) {
+        //Heading EAST
+        odoErr = dev->c->ox - tX;
+        if(walls == WALLS_BOTH) {
+            devErr = nextSample(filter->xCorrect, (odoErr + sonarErr));
+        }
+        *adjX = dev->c->ox - devErr;
+
+    } else {
+        //Heading SOUTH
+        odoErr = dev->c->oy - tY;
+        if(walls == WALLS_BOTH) {
+            devErr = nextSample(filter->yCorrect, (odoErr - sonarErr));
+        }
+        *adjY = dev->c->oy - devErr;
+    }
+}
+
+double Move(api_HANDLES_t * dev, FilterHandles_t * filter, pidHandles_t * pids, double X, double Y) {
+    double tError, rError, hError;
+    double vX, vA;
+    double adjX, adjY;
+    double sonarL, sonarR;
+    int walls;
+    int arrived = 0;
+
+    create_get_sensors(dev->c, TIMEOUT);
+    filterSonar(dev,filter,&sonarL,&sonarR);
+
+    while(!bumped(dev) && !arrived) {
+        //Make sure the path is clear ahead
+        if(checkInFront(dev, filter)) {
+            create_set_speeds(dev->c, 0, 0);
+            #ifdef DEBUG
+            printf("Obstruction detected by IR");
+            #endif
+            while(checkInFront(dev, filter) && !bumped(dev)) {
+                #ifdef DEBUG
+                printf(".");
+                fflush(stdout);
+                #endif
+            }
+            #ifdef DEBUG
+            printf("\n");
+            #endif
+        } else {
+            hError = hall_center_err(sonarL,sonarR,&walls,pids->sonar);
+            correctOdomErr(dev, filter, hError, X, Y, walls, &adjX, &adjY);
+            tError = tranError(adjX, adjY, pids->trans, X, Y);
+            rError = targetRotError(adjX, adjY, dev->c->oa,pids->angle, X, Y);
+            if(rError > 0.75*PI || rError < -0.75*PI) {
+                //We passed it up, error should be negative
+                tError = -tError;
+                pids->trans->errorHist[pids->trans->iErr] = tError;
+                if(rError < 0) {
+                    rError += PI;
+                } else {
+                    rError -= PI;
+                }
+                pids->angle->errorHist[pids->angle->iErr] = rError;
+                //printf("Backwards! T: %f  R: %f\n",tError,rError);
+            }
+            if(walls == WALLS_NONE) {
+                //We must rely on the wheel encoders
+                vA = PID(pids->angle);
+            } else {
+                //Set angular velocity based on wall data
+                vA = PID(pids->angle) + PID(pids->sonar);
+            }
+            vX = PID(pids->trans);
+            vA *= angleMultiplier(vX);
+
+            create_set_speeds(dev->c, vX, vA);       //set new velocities
+            #ifdef DEBUG
+            printf("VX: %2.3f  VA: %2.3f  Te: %2.3f  Re: %2.3f  pos: %2.3f %2.3f %2.3f  adj: %2.3f %2.3f  sonar: %3.3f %3.3f He: %2.3f  walls: %d\n", vX, vA, tError, rError, dev->c->ox, dev->c->oy, dev->c->oa, adjX, adjY, sonarL, sonarR, hError, walls);
+            #endif
+        }
+        usleep(100000);  //sleep long enough for the sensors to refresh
+        create_get_sensors(dev->c, TIMEOUT);     //update odometer sensor data
+        filterSonar(dev,filter,&sonarL,&sonarR); //get new filtered data from sonar
+        if(tError <= pids->trans->tol) { arrived = 1; } //Check if we made it yet
+    }
+
+    create_get_sensors(dev->c, TIMEOUT);//update position from sensors
+
+    return tranError(adjX, adjY, pids->trans, X, Y);
 }

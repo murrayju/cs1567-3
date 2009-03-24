@@ -47,22 +47,28 @@ FilterData_t * initializeFilter(int type) {
     */
 
     int i;
-    double ir_coeffs[] = IR_COEFFS;
-    double sonar_coeffs[] = SONAR_COEFFS;
-    FilterData_t *f = malloc(sizeof(FilterData_t));
+    static double ir_coeffs[] = FILT_IR_COEFFS;
+    static double sonar_coeffs[] = FILT_SONAR_COEFFS;
+    static double odo_coeffs[] = FILT_ODO_COEFFS;
+    FilterData_t * f = malloc(sizeof(FilterData_t));
 
     // Initialize everything to zero
     memset(f,0,sizeof(FilterData_t));
+    if(f == NULL) { return NULL; }
 
     // Copy the #defined coeffs into the struct
-    if(type == IR) {
-        memcpy(f->coefficients, ir_coeffs, IR_SAMPLES * sizeof(double));
-        f->num_samples = IR_SAMPLES;
-        f->max = IR_MAX;
-    } else if(type == SONAR) {
-        memcpy(f->coefficients, sonar_coeffs, SONAR_SAMPLES * sizeof(double));
-        f->num_samples = SONAR_SAMPLES;
-        f->max = SONAR_MAX;
+    if(type == FILT_IR) {
+        memcpy(f->coefficients, ir_coeffs, FILT_IR_SAMPLES * sizeof(double));
+        f->num_samples = FILT_IR_SAMPLES;
+        f->max = FILT_IR_MAX;
+    } else if(type == FILT_SONAR) {
+        memcpy(f->coefficients, sonar_coeffs, FILT_SONAR_SAMPLES * sizeof(double));
+        f->num_samples = FILT_SONAR_SAMPLES;
+        f->max = FILT_SONAR_MAX;
+    } else if(type == FILT_ODO) {
+        memcpy(f->coefficients, odo_coeffs, FILT_ODO_SAMPLES * sizeof(double));
+        f->num_samples = FILT_ODO_SAMPLES;
+        f->max = FILT_ODO_MAX;
     }
     return f;
 }

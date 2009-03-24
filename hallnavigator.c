@@ -20,6 +20,7 @@
 //Global handles so they can be used by sighandle
 api_HANDLES_t * hands;
 FilterHandles_t * filt;
+pidHandles_t * pids;
 
 void cleanup() {
     create_set_speeds(hands->c, 0, 0); //Stop moving
@@ -28,8 +29,12 @@ void cleanup() {
     free(filt->sonarR);
     free(filt->sonarL);
     free(filt->ir);
+    free(pids->trans);
+    free(pids->sonar);
+    free(pids->angle);
     free(hands);
     free(filt);
+    free(pids);
 }
 
 void sighandle(int sig) {
@@ -57,6 +62,10 @@ int main(int argc, const char **argv) {
         return -1;
     }
     if((filt = malloc(sizeof(FilterHandles_t))) == NULL) {
+        fprintf(stderr,"Error calling malloc\n");
+        return -1;
+    }
+    if((pids = malloc(sizeof(pidHandles_t))) == NULL) {
         fprintf(stderr,"Error calling malloc\n");
         return -1;
     }
@@ -96,9 +105,16 @@ int main(int argc, const char **argv) {
     turret_init(hands->t);
 
     //Initialize Filter structs
-    filt->sonarR = initializeFilter(SONAR);
-    filt->sonarL = initializeFilter(SONAR);
-    filt->ir = initializeFilter(IR);
+    filt->sonarR = initializeFilter(FILT_SONAR);
+    filt->sonarL = initializeFilter(FILT_SONAR);
+    filt->ir = initializeFilter(FILT_IR);
+    filt->xCorrect = initializeFilter(FILT_ODO);
+    filt->yCorrect = initializeFilter(FILT_ODO);
+
+    //Initialize PID structs
+    pids->trans = initializePID(TRANS_PID);
+    pids->angle = initializePID(ANGLE_PID);
+    pids->sonar = initializePID(SONAR_PID);
 
     // process command line args
     i = 1;
@@ -140,7 +156,7 @@ int main(int argc, const char **argv) {
 
     //Iterate over all of the waypoints
     for(i=0; i<numWaypts; i++) {
-        Move(hands,filt,waypoints[i].X,waypoints[i].Y);
+        Move(hands,filt,pids,waypoints[i].X,waypoints[i].Y);
 #ifdef DEBUG
         printf("\nArrived at waypoint %d.(%f,%f)\n\n", i+1,waypoints[i].X,waypoints[i].Y);
 #endif
