@@ -17,7 +17,7 @@ ROBOT=hal
 #
 CDIR=/opt/gumstix-buildroot/build_arm_nofpu/staging_dir/arm-linux-uclibcgnueabi/bin
 CFLAGS=-Os -march=iwmmxt -mtune=iwmmxt -mcpu=iwmmxt -I include -I /usr/share/pittCreate-API/include
-LIBS=-lm /usr/share/pittCreate-API/lib/libpittCreate.a
+LIBS=-lm /usr/share/pittCreate-API/lib/libpittCreate.a -lpthread
 CPP=${CDIR}/g++
 CC=${CDIR}/gcc 
 

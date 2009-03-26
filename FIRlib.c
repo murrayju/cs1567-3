@@ -19,6 +19,8 @@ double nextSample(FilterData_t * f, double nextVal) {
      // Checks if value is within threshold
      if(nextVal > f->max) {
          nextVal = f->max;
+     } else if(nextVal < -(f->max)) {
+         nextVal = -(f->max);
      }
 
      //adds the newest value into the next slot of the array
@@ -49,6 +51,7 @@ FilterData_t * initializeFilter(int type) {
     int i;
     static double ir_coeffs[] = FILT_IR_COEFFS;
     static double sonar_coeffs[] = FILT_SONAR_COEFFS;
+    static double odo_coeffs[] = FILT_ODO_COEFFS;
     FilterData_t * f = malloc(sizeof(FilterData_t));
 
     // Initialize everything to zero
@@ -64,6 +67,10 @@ FilterData_t * initializeFilter(int type) {
         memcpy(f->coefficients, sonar_coeffs, FILT_SONAR_SAMPLES * sizeof(double));
         f->num_samples = FILT_SONAR_SAMPLES;
         f->max = FILT_SONAR_MAX;
+    } else if(type == FILT_ODO) {
+        memcpy(f->coefficients, odo_coeffs, FILT_ODO_SAMPLES * sizeof(double));
+        f->num_samples = FILT_ODO_SAMPLES;
+        f->max = FILT_ODO_MAX;
     }
     return f;
 }
@@ -72,4 +79,11 @@ void filterSonar(api_HANDLES_t * dev, FilterHandles_t * filter, double * sonarL,
     turret_get_sonar(dev->t);
     *sonarL = nextSample(filter->sonarL, dev->t->sonar[0]);
     *sonarR = nextSample(filter->sonarR, dev->t->sonar[1]);
+}
+
+void filterOdometry(api_HANDLES_t * dev, FilterData_t * d, FilterData_t * a, double * dist, double * angle) {
+    create_get_sensors(dev->c, TIMEOUT);
+    *dist = nextSample(d, dev->c->dist);
+    *angle = nextSample(a, dev->c->angle);
+    //printf("D: %f\tA: %f\n",*dist,*angle);
 }

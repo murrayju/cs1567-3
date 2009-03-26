@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
+#include <pthread.h>
 #include "types.h"
 
 #define FULLCONTROL 1
@@ -21,6 +22,7 @@
 api_HANDLES_t * hands;
 FilterHandles_t * filt;
 pidHandles_t * pids;
+extern roboPos_t * posData;
 
 void cleanup() {
     create_set_speeds(hands->c, 0, 0); //Stop moving
@@ -32,6 +34,8 @@ void cleanup() {
     free(pids->trans);
     free(pids->sonar);
     free(pids->angle);
+    free(posData);
+    posData = NULL;
     free(hands);
     free(filt);
     free(pids);
@@ -50,6 +54,7 @@ int main(int argc, const char **argv) {
     coordData_t * waypoints;
     int numWaypts = NUM_WAYPOINTS;
     double w[] = WAYPOINT_ARRAY;
+    pthread_t thread;
 
     //Set signals to handle
     signal(SIGINT, &sighandle);
@@ -70,6 +75,10 @@ int main(int argc, const char **argv) {
         return -1;
     }
     if((waypoints = malloc(sizeof(coordData_t) * numWaypts)) == NULL) {
+        fprintf(stderr,"Error calling malloc\n");
+        return -1;
+    }
+    if((posData = malloc(sizeof(roboPos_t))) == NULL) {
         fprintf(stderr,"Error calling malloc\n");
         return -1;
     }
@@ -144,6 +153,11 @@ int main(int argc, const char **argv) {
             return -1;
         }
     }
+    
+    //Create thread to monitor robot movement
+    pthread_create(&thread, NULL, mapRobot, (void *)hands);
+    
+    //scaleCoefs(hands, pids->trans, 0.1447);
 
     // robot is ready
 #ifdef DEBUG
@@ -154,7 +168,7 @@ int main(int argc, const char **argv) {
 
     //Iterate over all of the waypoints
     for(i=0; i<numWaypts; i++) {
-		printf("Waypoint %d (%f,%f).\n",i+1,waypoints[i].X,waypoints[i].Y);
+        printf("Waypoint %d (%f,%f).\n",i+1,waypoints[i].X,waypoints[i].Y);
         Move(hands,filt,pids,waypoints[i].X,waypoints[i].Y);
 #ifdef DEBUG
         printf("\nArrived at waypoint %d (%f,%f).\n\n", i+1,waypoints[i].X,waypoints[i].Y);

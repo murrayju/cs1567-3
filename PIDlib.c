@@ -10,6 +10,9 @@
 #include "PIDlib.h"
 #include "FIRlib.h"
 
+roboPos_t * posData;
+double ox=0,oy=0,oa=0;
+
 double prevError(pidData_t * data) {
     if(data->iErr == 0) {
         return data->errorHist[NUMERR - 1];
@@ -153,6 +156,7 @@ double targetRotError(double cX, double cY, double cA, pidData_t * data, double 
 int bumped(api_HANDLES_t * dev) {
     static int storeBump = 0;
     if(storeBump) {
+        printf("Bumped!\n");
         return 1;
     } else {
         return storeBump = (dev->c->bumper_left || dev->c->bumper_right);
@@ -205,6 +209,12 @@ int checkInFront(api_HANDLES_t * dev, FilterHandles_t * filter) {
     return 0;
 }
 
+void scaleCoefs(api_HANDLES_t * dev, pidData_t * p, double factor) {
+    p->Kp *= (1 - dev->c->charge/dev->c->capacity)/factor;
+    p->Kd *= (1 - dev->c->charge/dev->c->capacity)/factor;
+    p->Ki *= (1 - dev->c->charge/dev->c->capacity)/factor;
+}
+
 pidData_t * initializePID(int type) {
     // This function initializes a pidData struct
 
@@ -232,44 +242,63 @@ pidData_t * initializePID(int type) {
 
 void correctOdomErr(api_HANDLES_t * dev, double sonarErr, double tX, double tY, int walls, double * adjX, double * adjY) {
     //Determine current heading
-    double a = dev->c->oa;
+    double a = oa;
     double odoErr;
     static double devErrX = 0.0, devErrY = 0.0;
-    if(a > -PI/4.0 && a <= PI/4.0) {
+    if(abs(angleDiff(0, a)) < PI/8.0) {
         //Heading NORTH
-        odoErr = dev->c->oy - tY;
+        odoErr = oy - tY;
         if(walls == WALLS_BOTH && abs(odoErr) < 6.0) {
             devErrY = (odoErr + sonarErr/100.0);
         }
-        *adjY = dev->c->oy - devErrY;
-        *adjX = dev->c->ox - devErrX;
-        //printf("Heading north: odoErr: %f devErr: %f sonarErr: %f tX: %f tY: %f Y: %f adjY: %f\n",odoErr,devErrY,sonarErr/100.0,tX,tY,dev->c->oy,adjY);
-    } else if(a > PI/4.0 && a <= PI*0.75) {
+        *adjY = oy - devErrY;
+        *adjX = ox - devErrX;
+        //printf("Heading north: odoErr: %f devErr: %f sonarErr: %f tX: %f tY: %f Y: %f adjY: %f\n",odoErr,devErrY,sonarErr/100.0,tX,tY,oy,adjY);
+    } else if(abs(angleDiff(PI/2.0, a)) < PI/8.0) {
         //Heading WEST
-        odoErr = dev->c->ox - tX;
+        odoErr = ox - tX;
         if(walls == WALLS_BOTH && abs(odoErr) < 6.0) {
             devErrX = (odoErr - sonarErr/100.0);
         }
-        *adjY = dev->c->oy - devErrY;
-        *adjX = dev->c->ox - devErrX;
+        *adjY = oy - devErrY;
+        *adjX = ox - devErrX;
 
-    } else if(a > -PI*0.75 && PI <= -PI/4.0) {
+    } else if(abs(angleDiff(1.5*PI, a)) < PI/8.0) {
         //Heading EAST
-        odoErr = dev->c->ox - tX;
+        odoErr = ox - tX;
         if(walls == WALLS_BOTH && abs(odoErr) < 6.0) {
             devErrX = (odoErr + sonarErr/100.0);
         }
-        *adjY = dev->c->oy - devErrY;
-        *adjX = dev->c->ox - devErrX;
+        *adjY = oy - devErrY;
+        *adjX = ox - devErrX;
 
-    } else {
+    } else if(abs(angleDiff(PI, a)) < PI/8.0) {
         //Heading SOUTH
-        odoErr = dev->c->oy - tY;
+        odoErr = oy - tY;
         if(walls == WALLS_BOTH && abs(odoErr) < 6.0) {
             devErrY = (odoErr - sonarErr/100.0);
         }
-        *adjY = dev->c->oy - devErrY;
-        *adjX = dev->c->ox - devErrX;
+        *adjY = oy - devErrY;
+        *adjX = ox - devErrX;
+    } else {
+        //Turning, no adjustment
+        *adjY = oy - devErrY;
+        *adjX = ox - devErrX;
+    }
+}
+
+//This is the thread that runs to sample and filter robot odometry data
+void * mapRobot(void * api) {
+    api_HANDLES_t * dev = (api_HANDLES_t *)api;
+    FilterData_t * distFilt = initializeFilter(FILT_ODO);
+    FilterData_t * angleFilt = initializeFilter(FILT_ODO);
+    double dist, angle;
+    while(posData != NULL) {
+        filterOdometry(dev, distFilt, angleFilt, &dist, &angle);
+        oa = NORMALIZE(oa + angle);
+        ox += dist * cos(oa);
+        oy += dist * sin(oa);
+        usleep(50000);
     }
 }
 
@@ -281,12 +310,11 @@ double Move(api_HANDLES_t * dev, FilterHandles_t * filter, pidHandles_t * pids, 
     int walls;
     int arrived = 0;
 
-    create_get_sensors(dev->c, TIMEOUT);
     filterSonar(dev,filter,&sonarL,&sonarR);
 
     while(!bumped(dev) && !arrived) {
         //Make sure the path is clear ahead
-        if(0 && checkInFront(dev, filter)) {
+        if(checkInFront(dev, filter)) {
             create_set_speeds(dev->c, 0, 0);
             #ifdef DEBUG
             printf("Obstruction detected by IR");
@@ -305,7 +333,7 @@ double Move(api_HANDLES_t * dev, FilterHandles_t * filter, pidHandles_t * pids, 
         hError = hall_center_err(sonarL,sonarR,&walls,pids->sonar);
         correctOdomErr(dev, hError, X, Y, walls, &adjX, &adjY);
         tError = tranError(adjX, adjY, pids->trans, X, Y);
-        rError = targetRotError(adjX, adjY, dev->c->oa,pids->angle, X, Y);
+        rError = targetRotError(adjX, adjY, oa,pids->angle, X, Y);
         if(rError > 0.75*PI || rError < -0.75*PI) {
             //We passed it up, error should be negative
             tError = -tError;
@@ -323,23 +351,23 @@ double Move(api_HANDLES_t * dev, FilterHandles_t * filter, pidHandles_t * pids, 
             vA = PID(pids->angle);
         } else {
             //Set angular velocity based on wall data
-            vA = /*PID(pids->angle) + */PID(pids->sonar);
+            vA = 0.3*PID(pids->angle) + 0.7*PID(pids->sonar);
         }
         vX = PID(pids->trans);
-        vA *= angleMultiplier(vX);
+        //vA *= angleMultiplier(vX);
 
         create_set_speeds(dev->c, vX, vA);       //set new velocities
         #ifdef DEBUG
-        printf("VX: %2.3f  VA: %2.3f  Te: %2.3f  Re: %2.3f  pos: %2.3f %2.3f %2.3f  adj: %2.3f %2.3f  sonar: %3.3f %3.3f He: %2.3f  walls: %d\n", vX, vA, tError, rError, dev->c->ox, dev->c->oy, dev->c->oa, adjX, adjY, sonarL, sonarR, hError, walls);
+        //printf("V: %f A: %f Ch: %f Cap: %f\n", dev->c->voltage, dev->c->current, dev->c->charge, dev->c->capacity);
+        printf("old: %2.3f %2.3f %2.3f\tnew: %2.3f %2.3f %2.3f\tadj: %2.3f %2.3f\n", dev->c->ox, dev->c->oy, dev->c->oa, ox, oy, oa, adjX, adjY);
+        printf("VX: %2.3f  VA: %2.3f  Te: %2.3f  Re: %2.3f  sonar: %3.3f %3.3f He: %2.3f  walls: %d\n", vX, vA, tError, rError, sonarL, sonarR, hError, walls);
         #endif
 
         usleep(100000);  //sleep long enough for the sensors to refresh
-        create_get_sensors(dev->c, TIMEOUT);     //update odometer sensor data
+        //create_get_sensors(dev->c, TIMEOUT);     //update odometer sensor data
         filterSonar(dev,filter,&sonarL,&sonarR); //get new filtered data from sonar
         if(abs(tError) <= pids->trans->tol) { arrived = 1; } //Check if we made it yet
     }
-
-    create_get_sensors(dev->c, TIMEOUT);//update position from sensors
 
     return tranError(adjX, adjY, pids->trans, X, Y);
 }
