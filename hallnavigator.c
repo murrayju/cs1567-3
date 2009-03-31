@@ -30,7 +30,8 @@ void cleanup() {
     turret_close(hands->t);
     free(filt->sonarR);
     free(filt->sonarL);
-    free(filt->ir);
+    free(filt->ir0);
+    free(filt->ir1);
     free(pids->trans);
     free(pids->sonar);
     free(pids->angle);
@@ -116,7 +117,8 @@ int main(int argc, const char **argv) {
     //Initialize Filter structs
     filt->sonarR = initializeFilter(FILT_SONAR);
     filt->sonarL = initializeFilter(FILT_SONAR);
-    filt->ir = initializeFilter(FILT_IR);
+    filt->ir0 = initializeFilter(FILT_IR);
+    filt->ir1 = initializeFilter(FILT_IR);
 
     //Initialize PID structs
     pids->trans = initializePID(TRANS_PID);
@@ -156,8 +158,6 @@ int main(int argc, const char **argv) {
     
     //Create thread to monitor robot movement
     pthread_create(&thread, NULL, mapRobot, (void *)hands);
-    
-    //scaleCoefs(hands, pids->trans, 0.1447);
 
     // robot is ready
 #ifdef DEBUG
@@ -168,7 +168,12 @@ int main(int argc, const char **argv) {
 
     //Iterate over all of the waypoints
     for(i=0; i<numWaypts; i++) {
+#ifdef DEBUG
         printf("Waypoint %d (%f,%f).\n",i+1,waypoints[i].X,waypoints[i].Y);
+#endif
+        if(i > 0) {
+            Turn(hands,filt,pids,waypoints[i].X,waypoints[i].Y);
+        }
         Move(hands,filt,pids,waypoints[i].X,waypoints[i].Y);
 #ifdef DEBUG
         printf("\nArrived at waypoint %d (%f,%f).\n\n", i+1,waypoints[i].X,waypoints[i].Y);

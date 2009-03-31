@@ -12,3 +12,6 @@ FilterData_t * initializeFilter(int);
 
 //Returns the filterd sonar values
 void filterSonar(api_HANDLES_t *, FilterHandles_t *, double *, double *);
+
+//Returns the filtered ir values
+void filterIR(api_HANDLES_t *, FilterHandles_t *, double *, double *);

@@ -81,6 +81,12 @@ void filterSonar(api_HANDLES_t * dev, FilterHandles_t * filter, double * sonarL,
     *sonarR = nextSample(filter->sonarR, dev->t->sonar[1]);
 }
 
+void filterIR(api_HANDLES_t * dev, FilterHandles_t * filter, double * ir0, double * ir1) {
+    turret_get_ir(dev->t);
+    *ir0 = nextSample(filter->ir0, dev->t->ir[0]);
+    *ir1 = nextSample(filter->ir1, dev->t->ir[1]);
+}
+
 void filterOdometry(api_HANDLES_t * dev, FilterData_t * d, FilterData_t * a, double * dist, double * angle) {
     create_get_sensors(dev->c, TIMEOUT);
     *dist = nextSample(d, dev->c->dist);

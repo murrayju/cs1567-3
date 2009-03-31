@@ -9,7 +9,7 @@ SRCS=hallnavigator.c FIRlib.c PIDlib.c
 TARGET=hallnavigator
 # STEP 3: (optional .. if you enter the name of the target robot below
 # than typing "make install" will copy the target executable there
-ROBOT=hal
+ROBOT=pris
 #
 #*******************************************************************
 # changing stuff below this line is at your own risk..

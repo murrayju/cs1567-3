@@ -7,8 +7,11 @@
 
 #define DEBUG
 #define ABSOLUTE_COORD
+#define USE_IR_MODE //When this is defined, use the IR to sense the walls instead of Sonar
 
 #define PI 3.141592654
+
+#define STRAIGHT_TOL PI/16.0
 
 #define NUMERR 10       //Number of errors to keep in PID history array
 
@@ -20,15 +23,28 @@
 #define NUM_PID_C   5
 //define PID coeffs {Kp, Kd, Ki, tolerance, maxI}
 #define TRANS_PID_C {0.8, 1.0, 0.01, 0.5, 10.0}
-#define ANGLE_PID_C {0.5, 0.8, 0.0001, 0.01, 10.0}
-#define SONAR_PID_C {0.0045, 0.01, 0.00001, 0.1, 0.0001}
+#ifdef USE_IR_MODE
+    #define SONAR_PID_C {0.009, 0.002, 0.00002, 0.1, 0.0001}
+    #define ANGLE_PID_C {0.4, 0.5, 0.0002, 0.01, 10.0}
+#else
+    #define SONAR_PID_C {0.0045, 0.01, 0.00001, 0.1, 0.0001}
+    #define ANGLE_PID_C {0.6, 0.5, 0.0002, 0.01, 10.0}
+#endif
 
 
-#define HALL_WIDTH 240  //width of hallway in centimeters
-#define HALL_VAR 220    //hallway sonar max value acceptable
-#define IR_VAR 45.0     //ir sensor variance
 
-#define TIMEOUT 0.1
+
+
+#ifdef USE_IR_MODE
+    #define HALL_WIDTH 150.0  //width of hallway in centimeters
+    #define HALL_VAR 50.0   //hallway error max value acceptable
+#else
+    #define HALL_WIDTH 240.0  //width of hallway in centimeters
+    #define HALL_VAR 220.0  //hallway error max value acceptable
+#endif
+#define FRONT_DIST 45.0     //Detect in front distance
+
+#define TIMEOUT 200
 
 // Wall status defines
 #define WALLS_BOTH        3
@@ -52,7 +68,7 @@
 //define max sample value
 #define FILT_IR_MAX     50
 #define FILT_SONAR_MAX  260
-#define FILT_ODO_MAX    1
+#define FILT_ODO_MAX    0.1
 
 //Filter Coefficients
 #define FILT_SONAR_COEFFS   {0.055297513, 0.09282488, 0.12569353, 0.14813437, 0.15609948, 0.14813437, 0.12569353, 0.09282488, 0.055297513}//{0.0042270822, 0.018569125, 0.034649216, 0.051321678, 0.06732041, 0.08137835, 0.092350215, 0.09932517, 0.101717494, 0.09932517, 0.092350215, 0.08137835, 0.06732041, 0.051321678, 0.034649216, 0.018569125, 0.0042270822}//{0.125,0.120242471,0.106694174,0.086417715,0.0625,0.038582285,0.018305826,0.004757529,0,0.004757529,0.018305826,0.038582285,0.0625,0.086417715,0.106694174,0.120242471}
@@ -61,7 +77,11 @@
 
 
 //Turrett settings
-#define T_ANGLE 87.0
+#ifdef USE_IR_MODE
+    #define T_ANGLE 167.0
+#else
+    #define T_ANGLE 87.0
+#endif
 #define COMPORT "/dev/ttyS2"
 
 //Function to normalize an angle
@@ -84,7 +104,7 @@ typedef struct _api_HANDLES {
 
 //Filter data struct
 typedef struct _FilterData {
-    int max;
+    double max;
     int num_samples;
     double coefficients[MAX_SAMPLES];
     int  next_index;
@@ -94,7 +114,8 @@ typedef struct _FilterData {
 typedef struct _FilterHandles {
     FilterData_t * sonarL;
     FilterData_t * sonarR;
-    FilterData_t * ir;
+    FilterData_t * ir0;
+    FilterData_t * ir1;
 } FilterHandles_t;
 
 typedef struct _pidHandles {
