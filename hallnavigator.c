@@ -28,13 +28,14 @@ void cleanup() {
     create_set_speeds(hands->c, 0, 0); //Stop moving
     create_close(hands->c);
     turret_close(hands->t);
-    free(filt->sonarR);
-    free(filt->sonarL);
+    free(filt->sonar0);
+    free(filt->sonar1);
     free(filt->ir0);
     free(filt->ir1);
     free(pids->trans);
     free(pids->sonar);
     free(pids->angle);
+    free(pids->angleT);
     free(posData);
     posData = NULL;
     free(hands);
@@ -115,8 +116,8 @@ int main(int argc, const char **argv) {
     turret_init(hands->t);
 
     //Initialize Filter structs
-    filt->sonarR = initializeFilter(FILT_SONAR);
-    filt->sonarL = initializeFilter(FILT_SONAR);
+    filt->sonar0 = initializeFilter(FILT_SONAR);
+    filt->sonar1 = initializeFilter(FILT_SONAR);
     filt->ir0 = initializeFilter(FILT_IR);
     filt->ir1 = initializeFilter(FILT_IR);
 
@@ -124,6 +125,7 @@ int main(int argc, const char **argv) {
     pids->trans = initializePID(TRANS_PID);
     pids->angle = initializePID(ANGLE_PID);
     pids->sonar = initializePID(SONAR_PID);
+    pids->angleT = initializePID(ANGLET_PID);
 
     // process command line args
     i = 1;
@@ -155,7 +157,7 @@ int main(int argc, const char **argv) {
             return -1;
         }
     }
-    
+
     //Create thread to monitor robot movement
     pthread_create(&thread, NULL, mapRobot, (void *)hands);
 

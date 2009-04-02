@@ -8,8 +8,13 @@
 #define DEBUG
 #define ABSOLUTE_COORD
 #define USE_IR_MODE //When this is defined, use the IR to sense the walls instead of Sonar
+#define HAL
 
-#define PI 3.141592654
+#define PI    (3.141592654)
+#define NORTH (0.0)
+#define SOUTH (PI)
+#define EAST  (-PI/2.0)
+#define WEST  (PI/2.0)
 
 #define STRAIGHT_TOL PI/16.0
 
@@ -30,10 +35,16 @@
     #define SONAR_PID_C {0.0045, 0.01, 0.00001, 0.1, 0.0001}
     #define ANGLE_PID_C {0.6, 0.5, 0.0002, 0.01, 10.0}
 #endif
+#define ANGLET_PID_C {1.1, 0.05, 0.006, 0.005, 0.5}
 
+#ifdef HAL
+#define BATT_FACT 6.91
+#else
+#define BATT_FACT 6.91
+#endif
 
-
-
+#define LOOP_SLEEP 10000
+#define ODO_SLEEP  50000
 
 #ifdef USE_IR_MODE
     #define HALL_WIDTH 150.0  //width of hallway in centimeters
@@ -42,7 +53,9 @@
     #define HALL_WIDTH 240.0  //width of hallway in centimeters
     #define HALL_VAR 220.0  //hallway error max value acceptable
 #endif
-#define FRONT_DIST 45.0     //Detect in front distance
+#define FRONT_DIST  45.0    //Detect in front distance
+#define SIDE_DIST   35.0    //Robot is very close to wall
+#define SLOW_VX     0.5     //Slow robot speed for safe turning
 
 #define TIMEOUT 200
 
@@ -112,8 +125,8 @@ typedef struct _FilterData {
 } FilterData_t;
 
 typedef struct _FilterHandles {
-    FilterData_t * sonarL;
-    FilterData_t * sonarR;
+    FilterData_t * sonar0;
+    FilterData_t * sonar1;
     FilterData_t * ir0;
     FilterData_t * ir1;
 } FilterHandles_t;
@@ -122,6 +135,7 @@ typedef struct _pidHandles {
     pidData_t * trans;
     pidData_t * angle;
     pidData_t * sonar;
+    pidData_t * angleT;
 } pidHandles_t;
 
 typedef struct _coordData {

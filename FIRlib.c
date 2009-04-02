@@ -75,10 +75,10 @@ FilterData_t * initializeFilter(int type) {
     return f;
 }
 
-void filterSonar(api_HANDLES_t * dev, FilterHandles_t * filter, double * sonarL, double * sonarR) {
+void filterSonar(api_HANDLES_t * dev, FilterHandles_t * filter, double * sonar0, double * sonar1) {
     turret_get_sonar(dev->t);
-    *sonarL = nextSample(filter->sonarL, dev->t->sonar[0]);
-    *sonarR = nextSample(filter->sonarR, dev->t->sonar[1]);
+    *sonar0 = nextSample(filter->sonar0, dev->t->sonar[0]);
+    *sonar1 = nextSample(filter->sonar1, dev->t->sonar[1]);
 }
 
 void filterIR(api_HANDLES_t * dev, FilterHandles_t * filter, double * ir0, double * ir1) {
