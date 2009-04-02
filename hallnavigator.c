@@ -52,6 +52,7 @@ void sighandle(int sig) {
 
 int main(int argc, const char **argv) {
     int i, a;
+    double t;
     int i2c_fd;
     coordData_t * waypoints;
     int numWaypts = NUM_WAYPOINTS;
@@ -167,15 +168,22 @@ int main(int argc, const char **argv) {
 #endif
     //Rotate the Servo
     turret_SetServo(hands->t, T_ANGLE);
+    
+    for(i=0; i<FILT_IR_SAMPLES; i++) {
+        filterIR(hands, filt, &t, &t);
+#ifndef USE_IR_MODE
+        filterSonar(hands, filt, &t, &t);
+#endif
+    }
 
     //Iterate over all of the waypoints
     for(i=0; i<numWaypts; i++) {
 #ifdef DEBUG
         printf("Waypoint %d (%f,%f).\n",i+1,waypoints[i].X,waypoints[i].Y);
 #endif
-        if(i > 0) {
-            Turn(hands,filt,pids,waypoints[i].X,waypoints[i].Y);
-        }
+        //if(i > 0) {
+        //    Turn(hands,filt,pids,waypoints[i].X,waypoints[i].Y);
+        //}
         Move(hands,filt,pids,waypoints[i].X,waypoints[i].Y);
 #ifdef DEBUG
         printf("\nArrived at waypoint %d (%f,%f).\n\n", i+1,waypoints[i].X,waypoints[i].Y);

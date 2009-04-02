@@ -254,7 +254,11 @@ void correctOdomErr(double sonarErr, int walls, double tX, double tY, double * a
     if(fabs(angleDiff(NORTH, oa)) < STRAIGHT_TOL) {
         //Heading NORTH
         odoErr = oy - tY;
+#ifdef USE_IR_MODE
+        if(walls != WALLS_NONE) {
+#else
         if(walls == WALLS_BOTH) {
+#endif
             devErrY = (odoErr + sonarErr/100.0);
         }
         *adjY = oy - devErrY;
@@ -262,7 +266,11 @@ void correctOdomErr(double sonarErr, int walls, double tX, double tY, double * a
     } else if(fabs(angleDiff(WEST, oa)) < STRAIGHT_TOL) {
         //Heading WEST
         odoErr = ox - tX;
+#ifdef USE_IR_MODE
+        if(walls != WALLS_NONE) {
+#else
         if(walls == WALLS_BOTH) {
+#endif
             devErrX = (odoErr - sonarErr/100.0);
         }
         *adjY = oy - devErrY;
@@ -271,7 +279,11 @@ void correctOdomErr(double sonarErr, int walls, double tX, double tY, double * a
     } else if(fabs(angleDiff(EAST, oa)) < STRAIGHT_TOL) {
         //Heading EAST
         odoErr = ox - tX;
+#ifdef USE_IR_MODE
+        if(walls != WALLS_NONE) {
+#else
         if(walls == WALLS_BOTH) {
+#endif
             devErrX = (odoErr + sonarErr/100.0);
         }
         *adjY = oy - devErrY;
@@ -280,7 +292,11 @@ void correctOdomErr(double sonarErr, int walls, double tX, double tY, double * a
     } else if(fabs(angleDiff(SOUTH, oa)) < STRAIGHT_TOL) {
         //Heading SOUTH
         odoErr = oy - tY;
+#ifdef USE_IR_MODE
+        if(walls != WALLS_NONE) {
+#else
         if(walls == WALLS_BOTH) {
+#endif
             devErrY = (odoErr - sonarErr/100.0);
         }
         *adjY = oy - devErrY;
@@ -292,7 +308,8 @@ void correctOdomErr(double sonarErr, int walls, double tX, double tY, double * a
     }
 }
 
-double oneWall(double walls) {
+//Returns the distance to one wall (the only wall seen)
+double oneWall(api_HANDLES_t * dev, FilterHandles_t * filter, double walls) {
     double wallL, wallR;
 
 #ifdef USE_IR_MODE
@@ -315,10 +332,10 @@ int sign(double d) {
     return -1;
 }
 
-void correctAngleErr(api_HANDLES_t * dev, double walls, double rError) {
+void correctAngleErr(api_HANDLES_t * dev, FilterHandles_t * filter, double walls, double rError) {
 
     double h, err, val, prev, vA, min;
-    double tol = 0.1;
+    double tol = 1.1;
 
     create_set_speeds(dev->c, 0.0, 0.0); //Stop moving
     //Determine the desired cardinal direction
@@ -331,45 +348,53 @@ void correctAngleErr(api_HANDLES_t * dev, double walls, double rError) {
     } else { // if(fabs(angleDiff(SOUTH, oa)) < PI/4.0) {
         h = SOUTH;
     }
-    vA = 0.1 * sign(angleDiff(h,oa));
-    usleep(LOOP_SLEEP);
-    val = min = oneWall(walls);
+    vA = 0.35 * sign(angleDiff(h,oa));
+    usleep(500000);
+    val = min = oneWall(dev,filter,walls);
     create_set_speeds(dev->c, 0.0, vA);
     do {
-        usleep(LOOP_SLEEP);
+        usleep(500000);
         prev = val;
-        val = oneWall(walls);
+        val = oneWall(dev,filter,walls);
         if(val < min) {
             min = val;
         }
+        printf("prev: %f val: %f min: %f vA: %f\n",prev,val,min,vA); 
     } while(val <= prev);
     vA *= -0.75; //Slow down and change direction
     create_set_speeds(dev->c, 0.0, vA);
+    printf("Change direction!\n");
+    usleep(500000);
     do {
-        usleep(LOOP_SLEEP);
+        usleep(500000);
         prev = val;
-        val = oneWall(walls);
+        val = oneWall(dev,filter,walls);
         if(val < min) {
             min = val;
         }
+        printf("prev: %f val: %f min: %f vA: %f\n",prev,val,min,vA); 
     } while(val <= prev);
-    printf("I think the min is: %f\n", min);
-    vA *= -0.75; //Slow down and change direction
+    //create_set_speeds(dev->c, 0.0, 0.0);
+    printf("Est min: %f\n", min);
+    
+    vA *= -0.95; //Slow down and change direction
     create_set_speeds(dev->c, 0.0, vA);
     while((err = (val-min)) > tol) {
-        usleep(LOOP_SLEEP);
+        usleep(500000);
         prev = val;
-        val = oneWall(walls);
+        val = oneWall(dev,filter,walls);
         if(val < min) {
             min = val;
         }
         if(val > prev) {
-            vA *= -0.75; //Slow down and change direction
+            vA *= -0.95; //Slow down and change direction
             create_set_speeds(dev->c, 0.0, vA);
+            printf("Change direction!\n");
         }
+        printf("prev: %f val: %f min: %f vA: %f\n",prev,val,min,vA); 
     }
     printf("I think I am oriented at dist: %f\n", val);
-
+    
     //Set the corrected angle
     oa = h;
 }
@@ -417,7 +442,7 @@ double Move(api_HANDLES_t * dev, FilterHandles_t * filter, pidHandles_t * pids, 
                 printf(".");
                 fflush(stdout);
                 #endif
-                usleep(usleep(LOOP_SLEEP);  //sleep long enough for the sensors to refresh
+                usleep(LOOP_SLEEP);  //sleep long enough for the sensors to refresh
             }
             #ifdef DEBUG
             printf("\n");
@@ -454,7 +479,7 @@ double Move(api_HANDLES_t * dev, FilterHandles_t * filter, pidHandles_t * pids, 
                 //But only do it once
                 if(!closeToWall) {
                     closeToWall = 1;
-                    correctAngleErr(dev, walls, rError);
+                    correctAngleErr(dev, filter, walls, rError);
                     correctOdomErr(hError, walls, X, Y, &adjX, &adjY);
                 }
             } else {

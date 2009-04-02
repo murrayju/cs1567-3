@@ -8,7 +8,7 @@
 #define DEBUG
 #define ABSOLUTE_COORD
 #define USE_IR_MODE //When this is defined, use the IR to sense the walls instead of Sonar
-#define HAL
+//#define HAL
 
 #define PI    (3.141592654)
 #define NORTH (0.0)
@@ -24,16 +24,17 @@
 #define TRANS_PID   0
 #define ANGLE_PID   1
 #define SONAR_PID   2
+#define ANGLET_PID   3
 
 #define NUM_PID_C   5
 //define PID coeffs {Kp, Kd, Ki, tolerance, maxI}
 #define TRANS_PID_C {0.8, 1.0, 0.01, 0.5, 10.0}
 #ifdef USE_IR_MODE
     #define SONAR_PID_C {0.009, 0.002, 0.00002, 0.1, 0.0001}
-    #define ANGLE_PID_C {0.4, 0.5, 0.0002, 0.01, 10.0}
+    #define ANGLE_PID_C {0.6, 0.5, 0.0002, 0.1, 1.0}
 #else
     #define SONAR_PID_C {0.0045, 0.01, 0.00001, 0.1, 0.0001}
-    #define ANGLE_PID_C {0.6, 0.5, 0.0002, 0.01, 10.0}
+    #define ANGLE_PID_C {0.6, 0.5, 0.0002, 0.1, 1.0}
 #endif
 #define ANGLET_PID_C {1.1, 0.05, 0.006, 0.005, 0.5}
 
@@ -49,13 +50,14 @@
 #ifdef USE_IR_MODE
     #define HALL_WIDTH 150.0  //width of hallway in centimeters
     #define HALL_VAR 50.0   //hallway error max value acceptable
+    #define SIDE_DIST   30.0    //Robot is very close to wall
 #else
     #define HALL_WIDTH 240.0  //width of hallway in centimeters
     #define HALL_VAR 220.0  //hallway error max value acceptable
+    #define SIDE_DIST   45.0    //Robot is very close to wall
 #endif
-#define FRONT_DIST  45.0    //Detect in front distance
-#define SIDE_DIST   35.0    //Robot is very close to wall
-#define SLOW_VX     0.5     //Slow robot speed for safe turning
+#define FRONT_DIST  40.0    //Detect in front distance
+#define SLOW_VX     0.25     //Slow robot speed for safe turning
 
 #define TIMEOUT 200
 
@@ -93,7 +95,7 @@
 #ifdef USE_IR_MODE
     #define T_ANGLE 167.0
 #else
-    #define T_ANGLE 87.0
+    #define T_ANGLE 85.0
 #endif
 #define COMPORT "/dev/ttyS2"
 
