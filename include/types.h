@@ -59,6 +59,8 @@
 #define FRONT_DIST  40.0    //Detect in front distance
 #define SLOW_VX     0.25     //Slow robot speed for safe turning
 
+#define CELL_DIST   80
+
 #define TIMEOUT 200
 
 // Wall status defines
