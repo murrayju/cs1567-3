@@ -454,7 +454,7 @@ double Move(api_HANDLES_t * dev, FilterHandles_t * filter, pidHandles_t * pids, 
             if(bumped(dev)) { break; }
         }
         hError = hall_center_err(wallL,wallR,&walls,pids->sonar);
-        correctOdomErr(hError, walls, X, Y, &adjX, &adjY);
+        correctOdomErr(hError, WALLS_NONE, X, Y, &adjX, &adjY);  //THIS IS OFF
         tError = tranError(adjX, adjY, pids->trans, X, Y);
         rError = targetRotError(adjX, adjY, oa,pids->angle, X, Y);
         if(rError > 0.75*PI || rError < -0.75*PI) {
@@ -483,8 +483,8 @@ double Move(api_HANDLES_t * dev, FilterHandles_t * filter, pidHandles_t * pids, 
                 //But only do it once
                 if(!closeToWall) {
                     closeToWall = 1;
-                    correctAngleErr(dev, filter, walls, rError);
-                    correctOdomErr(hError, walls, X, Y, &adjX, &adjY);
+                    //correctAngleErr(dev, filter, walls, rError);
+                    //correctOdomErr(hError, walls, X, Y, &adjX, &adjY);
                 }
             } else {
                 closeToWall = 0;
@@ -514,14 +514,14 @@ double Move(api_HANDLES_t * dev, FilterHandles_t * filter, pidHandles_t * pids, 
 }
 
 double Turn(api_HANDLES_t * dev, FilterHandles_t * filter, pidHandles_t * pids, double A) {
-    double tError, rError, hError;
+    double rError;
     double vX=0, vA;
     int arrived = 0;
 
     while(!bumped(dev) && !arrived) {
-        rError = rotError(oa,pids->angle, A);
+        rError = rotError(oa,pids->angleT, A);
 
-        vA = PID(pids->angle)*scaleByCharge(dev,BATT_FACT);
+        vA = PID(pids->angleT)*scaleByCharge(dev,BATT_FACT);
         vX = 0;
 
         create_set_speeds(dev->c, vX, vA);       //set new velocities
@@ -530,8 +530,8 @@ double Turn(api_HANDLES_t * dev, FilterHandles_t * filter, pidHandles_t * pids, 
         #endif
 
         usleep(LOOP_SLEEP);  //sleep long enough for the sensors to refresh
-        if(fabs(rError) <= pids->angle->tol) { arrived = 1; } //Check if we made it yet
+        if(fabs(rError) <= pids->angleT->tol) { arrived = 1; } //Check if we made it yet
     }
 
-    return rotError(oa,pids->angle, A);
+    return rotError(oa,pids->angleT, A);
 }

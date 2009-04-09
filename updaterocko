@@ -1,4 +1,4 @@
 #!/bin/bash
-scp *.c jem86@rocko.cs.pitt.edu:~/proj2/
-scp include/*.h jem86@rocko.cs.pitt.edu:~/proj2/include/
-scp Makefile jem86@rocko.cs.pitt.edu:~/proj2/
+scp *.c jem86@rocko.cs.pitt.edu:~/proj3/
+scp include/*.h jem86@rocko.cs.pitt.edu:~/proj3/include/
+scp Makefile jem86@rocko.cs.pitt.edu:~/proj3/

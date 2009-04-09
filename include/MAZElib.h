@@ -10,3 +10,4 @@
 #define EAST_WALL(w)  ((w >> EAST_BIT)  & 1)
 #define SOUTH_WALL(w) ((w >> SOUTH_BIT) & 1)
 
+int Move_To_Next(api_HANDLES_t *, FilterHandles_t *, pidHandles_t *, int);

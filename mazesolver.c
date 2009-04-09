@@ -13,10 +13,11 @@
 
 #include "PIDlib.h"
 #include "FIRlib.h"
+#include "MAZElib.h"
 
 //Define the default set of waypoints
-#define NUM_WAYPOINTS 9
-#define WAYPOINT_ARRAY {7.3152,0.0, 7.3152,7.62, 26.21,7.62, 26.21,-3.048, 30.1752,-3.048, 30.1752,-12.192, 7.3152,-12.192, 7.3152,0, 0,0}
+#define NUM_MOVES 10
+#define MOVE_ARRAY {WEST_BIT, NORTH_BIT, EAST_BIT, NORTH_BIT, EAST_BIT, EAST_BIT, NORTH_BIT, NORTH_BIT, EAST_BIT, EAST_BIT}
 
 //Global handles so they can be used by sighandle
 api_HANDLES_t * hands;
@@ -54,9 +55,8 @@ int main(int argc, const char **argv) {
     int i, a;
     double t;
     int i2c_fd;
-    coordData_t * waypoints;
-    int numWaypts = NUM_WAYPOINTS;
-    double w[] = WAYPOINT_ARRAY;
+    int numWaypts = NUM_MOVES;
+    int w[] = MOVE_ARRAY;
     pthread_t thread;
 
     //Set signals to handle
@@ -77,18 +77,9 @@ int main(int argc, const char **argv) {
         fprintf(stderr,"Error calling malloc\n");
         return -1;
     }
-    if((waypoints = malloc(sizeof(coordData_t) * numWaypts)) == NULL) {
-        fprintf(stderr,"Error calling malloc\n");
-        return -1;
-    }
     if((posData = malloc(sizeof(roboPos_t))) == NULL) {
         fprintf(stderr,"Error calling malloc\n");
         return -1;
-    }
-
-    for(i=0; i<numWaypts; i++) {
-        waypoints[i].X = w[i*2];
-        waypoints[i].Y = w[i*2+1];
     }
 
     // allocate devices
@@ -131,7 +122,9 @@ int main(int argc, const char **argv) {
     // process command line args
     i = 1;
     while( i < argc ) {
+        
         if(!strcmp(argv[i], "-w")) {
+            /*
             //Accept command line waypoints
             if(argc >= i+1) {
                 numWaypts = atoi(argv[++i]);
@@ -153,6 +146,7 @@ int main(int argc, const char **argv) {
             } else {
                 printf("Error using [-w].\n\tUsage: -w numPoints X1 Y1 X2 Y2...\n");
             }
+            */
         } else {
             printf("Unrecognized option [%s]\n",argv[i]);
             return -1;
@@ -179,11 +173,11 @@ int main(int argc, const char **argv) {
     //Iterate over all of the waypoints
     for(i=0; i<numWaypts; i++) {
 #ifdef DEBUG
-        printf("Waypoint %d (%f,%f).\n",i+1,waypoints[i].X,waypoints[i].Y);
+        printf("Waypoint %d (%d).\n",i+1,w[i]);
 #endif
-        Move(hands,filt,pids,waypoints[i].X,waypoints[i].Y);
+        Move_To_Next(hands,filt,pids,w[i]);
 #ifdef DEBUG
-        printf("\nArrived at waypoint %d (%f,%f).\n\n", i+1,waypoints[i].X,waypoints[i].Y);
+        printf("\nArrived at waypoint %d (%d).\n\n", i+1,w[i]);
 #endif
     }
 
