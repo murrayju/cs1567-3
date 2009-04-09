@@ -485,7 +485,7 @@ double Move(api_HANDLES_t * dev, FilterHandles_t * filter, pidHandles_t * pids, 
             vX = PID(pids->trans);
         } else {
             //Set angular velocity based on wall data
-            vA = (0.2*PID(pids->angle) + 0.8*PID(pids->sonar))*scaleByCharge(dev,BATT_FACT);
+            vA = (0.3*PID(pids->angle) + 0.7*PID(pids->sonar))*scaleByCharge(dev,BATT_FACT);
             if(wallL < SIDE_DIST || wallR < SIDE_DIST) {
                 //We are very close to the wall, take preventative measures
                 vX = SLOW_VX;

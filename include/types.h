@@ -30,7 +30,7 @@
 
 #define NUM_PID_C   5
 //define PID coeffs {Kp, Kd, Ki, tolerance, maxI}
-#define TRANS_PID_C {0.25, 0.3, 0.01, 0.07, 10.0}
+#define TRANS_PID_C {0.25, 0.3, 0.01, 0.1, 10.0}
 #ifdef USE_IR_MODE
     #define SONAR_PID_C {0.009, 0.002, 0.00002, 0.1, 0.0001}
     #define ANGLE_PID_C {0.6, 0.5, 0.0002, 0.1, 1.0}
@@ -63,7 +63,7 @@
 #define FRONT_DIST  40.0    //Detect in front distance
 #define SLOW_VX     0.25     //Slow robot speed for safe turning
 
-#define CELL_DIST   (80.0/100.0)
+#define CELL_DIST   (85.0/100.0)
 
 #define TIMEOUT 200
 
