@@ -8,7 +8,9 @@
 #define DEBUG
 #define ABSOLUTE_COORD
 #define USE_IR_MODE //When this is defined, use the IR to sense the walls instead of Sonar
+//#define FILTER_ODO
 //#define HAL
+#define JOHNNY5
 
 #define PI    (3.141592654)
 #define NORTH (0.0)
@@ -28,7 +30,7 @@
 
 #define NUM_PID_C   5
 //define PID coeffs {Kp, Kd, Ki, tolerance, maxI}
-#define TRANS_PID_C {0.4, 0.4, 0.01, 0.1, 10.0}
+#define TRANS_PID_C {0.25, 0.3, 0.01, 0.07, 10.0}
 #ifdef USE_IR_MODE
     #define SONAR_PID_C {0.009, 0.002, 0.00002, 0.1, 0.0001}
     #define ANGLE_PID_C {0.6, 0.5, 0.0002, 0.1, 1.0}
@@ -36,10 +38,12 @@
     #define SONAR_PID_C {0.0045, 0.01, 0.00001, 0.1, 0.0001}
     #define ANGLE_PID_C {0.6, 0.5, 0.0002, 0.1, 1.0}
 #endif
-#define ANGLET_PID_C {0.4, 0.4, 0.006, 0.1, 0.5}
+#define ANGLET_PID_C {0.5, 0.3, 0.006, 0.1, 0.5}
 
 #ifdef HAL
 #define BATT_FACT 6.91
+#elseifdef JOHNNY5
+#define BATT_FACT 10.00
 #else
 #define BATT_FACT 6.91
 #endif
@@ -48,18 +52,18 @@
 #define ODO_SLEEP  50000
 
 #ifdef USE_IR_MODE
-    #define HALL_WIDTH 150.0  //width of hallway in centimeters
+    #define HALL_WIDTH 80.0  //width of hallway in centimeters
     #define HALL_VAR 50.0   //hallway error max value acceptable
-    #define SIDE_DIST   30.0    //Robot is very close to wall
+    #define SIDE_DIST  45.0    //Robot is very close to wall
 #else
-    #define HALL_WIDTH 240.0  //width of hallway in centimeters
-    #define HALL_VAR 220.0  //hallway error max value acceptable
+    #define HALL_WIDTH 80.0  //width of hallway in centimeters
+    #define HALL_VAR 80.0  //hallway error max value acceptable
     #define SIDE_DIST   45.0    //Robot is very close to wall
 #endif
 #define FRONT_DIST  40.0    //Detect in front distance
 #define SLOW_VX     0.25     //Slow robot speed for safe turning
 
-#define CELL_DIST   80.0/100.0
+#define CELL_DIST   (80.0/100.0)
 
 #define TIMEOUT 200
 
@@ -75,27 +79,33 @@
 //defines filter type
 #define FILT_IR     0
 #define FILT_SONAR  1
-#define FILT_ODO  2
+#define FILT_ODO    2
 
 //defines number of samples
 #define FILT_IR_SAMPLES     9
 #define FILT_SONAR_SAMPLES  9
-#define FILT_ODO_SAMPLES    9
+#define FILT_ODO_SAMPLES    5
 
 //define max sample value
 #define FILT_IR_MAX     50
 #define FILT_SONAR_MAX  260
-#define FILT_ODO_MAX    0.1
+#define FILT_ODO_MAX    0.5
 
 //Filter Coefficients
 #define FILT_SONAR_COEFFS   {0.055297513, 0.09282488, 0.12569353, 0.14813437, 0.15609948, 0.14813437, 0.12569353, 0.09282488, 0.055297513}//{0.0042270822, 0.018569125, 0.034649216, 0.051321678, 0.06732041, 0.08137835, 0.092350215, 0.09932517, 0.101717494, 0.09932517, 0.092350215, 0.08137835, 0.06732041, 0.051321678, 0.034649216, 0.018569125, 0.0042270822}//{0.125,0.120242471,0.106694174,0.086417715,0.0625,0.038582285,0.018305826,0.004757529,0,0.004757529,0.018305826,0.038582285,0.0625,0.086417715,0.106694174,0.120242471}
 #define FILT_IR_COEFFS      {0.055297513, 0.09282488, 0.12569353, 0.14813437, 0.15609948, 0.14813437, 0.12569353, 0.09282488, 0.055297513}//{0.125,0.120242471,0.106694174,0.086417715,0.0625,0.038582285,0.018305826,0.004757529,0,0.004757529,0.018305826,0.038582285,0.0625,0.086417715,0.106694174,0.120242471}
-#define FILT_ODO_COEFFS     {0.055297513, 0.09282488, 0.12569353, 0.14813437, 0.15609948, 0.14813437, 0.12569353, 0.09282488, 0.055297513}//{0.25,0.2,0.1,0.02,0.0,0.06,0.15,0.22}
+#define FILT_ODO_COEFFS     {0.1388507, 0.22886887, 0.26456094, 0.22886887, 0.1388507}
 
 
 //Turrett settings
 #ifdef USE_IR_MODE
-    #define T_ANGLE 167.0
+    #ifdef PRIS
+        #define T_ANGLE 167.0
+    #elseifdef JOHNNY5
+        #define T_ANGLE 0.0
+    #else
+        #define T_ANGLE 0.0
+    #endif
 #else
     #define T_ANGLE 85.0
 #endif
@@ -117,6 +127,9 @@ typedef struct _pidData {
 typedef struct _api_HANDLES {
     create_comm_t *c;
     turret_comm_t *t;
+    double ox;
+    double oy;
+    double oa;
 } api_HANDLES_t;
 
 //Filter data struct
