@@ -30,15 +30,18 @@
 
 #define NUM_PID_C   5
 //define PID coeffs {Kp, Kd, Ki, tolerance, maxI}
-#define TRANS_PID_C {0.45, 0.35, 0.005, 0.1, 10.0}		//changed these pids
+#define TRANS_PID_C {0.50, 0.40, 0.005, 0.1, 10.0}		//changed these pids
 #ifdef USE_IR_MODE
-    #define SONAR_PID_C {0.009, 0.002, 0.00002, 0.1, 0.0001}
-    #define ANGLE_PID_C {0.6, 0.5, 0.0002, 0.1, 1.0}
+    #define SONAR_PID_C {0.02, 0.005, 0.0002, 0.1, 0.0001}
+    #define ANGLE_PID_C {0.55, 0.5, 0.0002, 0.1, 1.0}
 #else
     #define SONAR_PID_C {0.0045, 0.01, 0.00001, 0.1, 0.0001}
     #define ANGLE_PID_C {0.6, 0.5, 0.0002, 0.1, 1.0}
 #endif
-#define ANGLET_PID_C {0.5, 0.3, 0.006, 0.1, 0.5}
+#define ANGLET_PID_C {0.6, 0.35, 0.006, 0.1, 0.5}
+
+#define CORRECT_TOL 0.05
+#define MOVE_TOL    0.10
 
 #ifdef HAL
 #define BATT_FACT 6.91
@@ -52,20 +55,20 @@
 #define ODO_SLEEP  50000
 
 #ifdef USE_IR_MODE
-    #define HALL_WIDTH 80.0  //width of hallway in centimeters
+    #define HALL_WIDTH 75.0  //width of hallway in centimeters
     #define HALL_VAR 50.0   //hallway error max value acceptable
     #define SIDE_DIST  45.0    //Robot is very close to wall
 #else
-    #define HALL_WIDTH 80.0  //width of hallway in centimeters
+    #define HALL_WIDTH 75.0  //width of hallway in centimeters
     #define HALL_VAR 80.0  //hallway error max value acceptable
     #define SIDE_DIST   45.0    //Robot is very close to wall
 #endif
 #define FRONT_DIST  40.0    //Detect in front distance
 #define SLOW_VX     0.25     //Slow robot speed for safe turning
 
-#define CELL_DIST   (85.0/100.0)
+#define CELL_DIST   (90.0/100.0)
 #define CELL_VAR    80.0
-#define HALFCELL_VAR (CELL_VAR / 2.0)
+#define HALFCELL_VAR 35.0
 
 #define TIMEOUT 200
 

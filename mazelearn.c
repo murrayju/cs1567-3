@@ -76,6 +76,7 @@ int foundGoal(int wdis, double angle) {
 
 int main(int argc, const char **argv) {
     int i, a, num, rnum, p, wdir;
+    char ch;
     double t;
     int i2c_fd;
     pthread_t thread;
@@ -192,142 +193,207 @@ int main(int argc, const char **argv) {
     turret_SetServo(hands->t, T_ANGLE);
     usleep(500000);
 
-    //Fill the sensors with data before we start
-    for(i=0; i<20; i++) {
-        wdis = What_Do_I_See(hands, filt, &N, &S, &E, &W);
-    }
-
-    sNode = cNode = newNode();
-
-    //Solve the maze
-    while(!foundGoal((wdis = What_Do_I_See(hands, filt, &N, &S, &E, &W)),hands->oa) && !bumped(hands)) {
-        printf("start while\n");
-        cNode->walls = wdis;
-        num = 4 - COUNT_WALLS(cNode->walls);
-        printf("Num openings %d, heading %f\n",num,hands->oa);
-        if(cNode != sNode && cNode->from != NULL) {
-            num--; //Don't count where we came from
-            printf("num--\n");
-        }
-        printf("spot 1\n");
-        if(num > 0) {
-            //Allocate fair probs if this is the first time
-            printf("Has West Wall %d, %d\n",HAS_WEST_WALL(cNode->walls),cNode->walls);
-            if(!HAS_WEST_WALL(cNode->walls)) {
-                if(cNode->from != NULL && cNode->from == cNode->W) {
-                    printf("spot 1.1\n");
-                    cNode->probW = 0;
-                } else {
-                    printf("spot 1.2\n");
-                    if(cNode->probW < 0) {
-                        cNode->probW = 100 / num;
-                    }
-                }
-            }
-            if(!HAS_EAST_WALL(cNode->walls)) {
-                if(cNode->from != NULL && cNode->from == cNode->E) {
-                    printf("spot 1.3\n");
-                    cNode->probE = 0;
-                } else {
-                    if(cNode->probE < 0) {
-                        printf("spot 1.4\n");
-                        cNode->probE = 100 / num;
-                    }
-                }
-            }
-            if(!HAS_NORTH_WALL(cNode->walls)) {
-                if(cNode->from != NULL && cNode->from == cNode->N) {
-                    printf("spot 1.5\n");
-                    cNode->probN = 0;
-                } else {
-                    if(cNode->probN < 0) {
-                        printf("spot 1.6\n");
-                        cNode->probN = 100 / num;
-                    }
-                }
-            }
-            if(!HAS_SOUTH_WALL(cNode->walls)) {
-                if(cNode->from != NULL && cNode->from == cNode->S) {
-                    printf("spot 1.7\n");
-                    cNode->probS = 0;
-                } else {
-                    if(cNode->probS < 0) {
-                        printf("spot 1.8\n");
-                        cNode->probS = 100 / num;
-                    }
-                }
-            }
-        }
-        printf("spot 2\n");
-        
-        //roll the dice...
-        p = cNode->probW + cNode->probE + cNode->probN + cNode->probS;
-        if(p > 0) {
-            printf("spot 2.5 - %d, %d\n",p,rand());
-            rnum = (rand() % p) + 1;
-            printf("spot 3\n");
-            
-            //Find the winner and change the current node
-            wdir = -1;
-            if(cNode->probW > 0) {
-                p -= cNode->probW;
-                if(rnum >= p) {
-                    wdir = WEST_BIT;
-                    if(cNode->W == NULL) {
-                        cNode->W = newNode();
-                    }
-                    cNode->W->E = cNode->W->from = cNode;
-                    cNode = cNode->W;
-                }
-            }
-            if(wdir < 0 && cNode->probE > 0) {
-                p -= cNode->probE;
-                if(rnum >= p) {
-                    wdir = EAST_BIT;
-                    if(cNode->E == NULL) {
-                        cNode->E = newNode();
-                    }
-                    cNode->E->W = cNode->E->from = cNode;
-                    cNode = cNode->E;
-                }
-            }
-            if(wdir < 0 && cNode->probN > 0) {
-                p -= cNode->probN;
-                if(rnum >= p) {
-                    wdir = NORTH_BIT;
-                    if(cNode->N == NULL) {
-                        cNode->N = newNode();
-                    }
-                    cNode->N->S = cNode->N->from = cNode;
-                    cNode = cNode->N;
-                }
-            }
-            if(wdir < 0 && cNode->probS > 0) {
-                p -= cNode->probS;
-                if(rnum >= p) {
-                    wdir = SOUTH_BIT;
-                    if(cNode->S == NULL) {
-                        cNode->S = newNode();
-                    }
-                    cNode->S->N = cNode->S->from = cNode;
-                    cNode = cNode->S;
-                }
-            }
-            printf("spot 4\n");
-            //Move to the winning square
-            Move_To_Next(hands, filt, pids, wdir);
-            
-            create_set_speeds(hands->c, 0.0, 0.0); //stop
-            for(i=0; i<20; i++) {
-                wdis = What_Do_I_See(hands, filt, &N, &S, &E, &W);
-            }
-        }
-        printf("spot 5\n");
-
-    }
+    sNode = newNode();
     
-    if(!bumped(hands)) {
-        printf("\nI have reached a goal!!!\n");
+    while(!bumped(hands)) {
+        
+        cNode = sNode;
+        hands->oa = 0.0;
+        hands->ox = 0.0;
+        hands->oy = 0.0;
+        //Fill the sensors with data before we start
+        for(i=0; i<30; i++) {
+            wdis = What_Do_I_See(hands, filt, &N, &S, &E, &W);
+        }
+
+        //Solve the maze
+        while(!foundGoal((wdis = What_Do_I_See(hands, filt, &N, &S, &E, &W)),hands->oa) && !bumped(hands)) {
+            cNode->walls = wdis;
+            num = 4 - COUNT_WALLS(cNode->walls);
+            printf("Num openings %d, heading %f\n",num,hands->oa);
+            if(cNode != sNode && cNode->from != NULL) {
+                num--; //Don't count where we came from
+            }
+
+            if(num > 0) {
+                //Allocate fair probs if this is the first time
+                if(!HAS_WEST_WALL(cNode->walls)) {
+                    if(cNode->from != NULL && cNode->from == cNode->W) {
+                        cNode->probW = 0;
+                    } else {
+                        if(cNode->probW < 0) {
+                            cNode->probW = 100 / num;
+                        }
+                    }
+                } else {
+                    cNode->probW = -1; //There is a wall
+                }
+                if(!HAS_EAST_WALL(cNode->walls)) {
+                    if(cNode->from != NULL && cNode->from == cNode->E) {
+                        cNode->probE = 0;
+                    } else {
+                        if(cNode->probE < 0) {
+                            cNode->probE = 100 / num;
+                        }
+                    }
+                } else {
+                    cNode->probE = -1; //There is a wall
+                }
+                if(!HAS_NORTH_WALL(cNode->walls)) {
+                    if(cNode->from != NULL && cNode->from == cNode->N) {
+                        cNode->probN = 0;
+                    } else {
+                        if(cNode->probN < 0) {
+                            cNode->probN = 100 / num;
+                        }
+                    }
+                } else {
+                    cNode->probN = -1; //There is a wall
+                }
+                if(!HAS_SOUTH_WALL(cNode->walls)) {
+                    if(cNode->from != NULL && cNode->from == cNode->S) {
+                        cNode->probS = 0;
+                    } else {
+                        if(cNode->probS < 0) {
+                            cNode->probS = 100 / num;
+                        }
+                    }
+                } else {
+                    cNode->probS = -1; //There is a wall
+                }
+            }
+            printf("Probabilities: %d  %d  %d  %d\n",cNode->probN,cNode->probS,cNode->probE,cNode->probW);
+            
+            //roll the dice...
+            p = 0;
+            if(cNode->probW > 0) {
+                p += cNode->probW;
+            }
+            if(cNode->probE > 0) {
+                p += cNode->probE;
+            }
+            if(cNode->probN > 0) {
+                p += cNode->probN;
+            }
+            if(cNode->probS > 0) {
+                p += cNode->probS;
+            }
+            if(p > 0) {
+                rnum = (rand() % p) + 1;
+                
+                //Find the winner and change the current node
+                wdir = -1;
+                if(cNode->probW > 0) {
+                    p -= cNode->probW;
+                    if(rnum >= p) {
+                        wdir = WEST_BIT;
+                        if(cNode->W == NULL) {
+                            cNode->W = newNode();
+                        }
+                        cNode->W->E = cNode->W->from = cNode;
+                        cNode = cNode->W;
+                    }
+                }
+                if(wdir < 0 && cNode->probE > 0) {
+                    p -= cNode->probE;
+                    if(rnum >= p) {
+                        wdir = EAST_BIT;
+                        if(cNode->E == NULL) {
+                            cNode->E = newNode();
+                        }
+                        cNode->E->W = cNode->E->from = cNode;
+                        cNode = cNode->E;
+                    }
+                }
+                if(wdir < 0 && cNode->probN > 0) {
+                    p -= cNode->probN;
+                    if(rnum >= p) {
+                        wdir = NORTH_BIT;
+                        if(cNode->N == NULL) {
+                            cNode->N = newNode();
+                        }
+                        cNode->N->S = cNode->N->from = cNode;
+                        cNode = cNode->N;
+                    }
+                }
+                if(wdir < 0 && cNode->probS > 0) {
+                    p -= cNode->probS;
+                    if(rnum >= p) {
+                        wdir = SOUTH_BIT;
+                        if(cNode->S == NULL) {
+                            cNode->S = newNode();
+                        }
+                        cNode->S->N = cNode->S->from = cNode;
+                        cNode = cNode->S;
+                    }
+                }
+                //Move to the winning square
+                Move_To_Next(hands, filt, pids, wdir);
+                
+                create_set_speeds(hands->c, 0.0, 0.0); //stop
+                for(i=0; i<30; i++) {
+                    wdis = What_Do_I_See(hands, filt, &N, &S, &E, &W);
+                }
+            }
+        }
+        
+        if(!bumped(hands)) {
+            printf("\nI have reached a goal!!!\n");
+            do {
+                printf("Is this the solution? ");
+                ch = getc(stdin);
+                getc(stdin);
+                printf("\n");
+            } while(ch != 'y' && ch != 'n');
+            if(ch == 'n') {
+                //Make some prob adjustments 
+                while(cNode != sNode && cNode != NULL) {
+                    if(cNode->from != NULL) {
+                        if(cNode->from->N == cNode) {
+                            cNode->from->probN /= 2;
+                        } else if(cNode->from->S == cNode) {
+                            cNode->from->probS /= 2;
+                        } else if(cNode->from->E == cNode) {
+                            cNode->from->probE /= 2;
+                        } else if(cNode->from->W == cNode) {
+                            cNode->from->probW /= 2;
+                        }
+                    }
+                    cNode = cNode->from;
+                }
+            } else {
+                //This is the solution
+                while(cNode != sNode && cNode != NULL) {
+                    if(cNode->from != NULL) {
+                        if(cNode->from->N == cNode) {
+                            cNode->from->probN = 100;
+                            cNode->from->probS = 0;
+                            cNode->from->probE = 0;
+                            cNode->from->probW = 0;
+                        } else if(cNode->from->S == cNode) {
+                            cNode->from->probS = 100;
+                            cNode->from->probN = 0;
+                            cNode->from->probE = 0;
+                            cNode->from->probW = 0;
+                        } else if(cNode->from->E == cNode) {
+                            cNode->from->probE = 100;
+                            cNode->from->probS = 0;
+                            cNode->from->probN = 0;
+                            cNode->from->probW = 0;
+                        } else if(cNode->from->W == cNode) {
+                            cNode->from->probW = 100;
+                            cNode->from->probS = 0;
+                            cNode->from->probE = 0;
+                            cNode->from->probN = 0;
+                        }
+                    }
+                    cNode = cNode->from;
+                }
+            }
+            printf("Press enter to start next run... ");
+            ch = getc(stdin);
+            printf("\n\n\n");
+        }
     }
 
     // Shutdown and tidy up.  Close all of the proxy handles

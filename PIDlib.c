@@ -429,7 +429,17 @@ void * mapRobot(void * api) {
     }
 }
 
-double Move(api_HANDLES_t * dev, FilterHandles_t * filter, pidHandles_t * pids, double X, double Y) {
+double angleMultiplier(double v) {
+	if(fabs(v) > 1) {
+		return 1;
+	} else if(fabs(v) < .25) {
+		return .25;
+	} else {
+		return fabs(v)*.8;
+	}
+}
+
+double Move(api_HANDLES_t * dev, FilterHandles_t * filter, pidHandles_t * pids, double X, double Y, double tol) {
     double tError, rError, hError;
     double vX, vA;
     double adjX, adjY;
@@ -481,19 +491,20 @@ double Move(api_HANDLES_t * dev, FilterHandles_t * filter, pidHandles_t * pids, 
         }
         if(walls == WALLS_NONE) {
             //We must rely on the wheel encoders
-            vA = PID(pids->angle)*scaleByCharge(dev,BATT_FACT);
             vX = PID(pids->trans);
+            vA = PID(pids->angle)*scaleByCharge(dev,BATT_FACT)*angleMultiplier(vX);
         } else {
             //Set velocities based on wall data
-            vA = (0.3*PID(pids->angle) + 0.7*PID(pids->sonar))*scaleByCharge(dev,BATT_FACT);
             vX = PID(pids->trans);
+            vA = (0.7*PID(pids->angle) + 0.3*PID(pids->sonar))*scaleByCharge(dev,BATT_FACT)*angleMultiplier(vX);
+            
         }
 
         create_set_speeds(dev->c, vX, vA);       //set new velocities
         #ifdef DEBUG
         //printf("V: %f A: %f Ch: %f Cap: %f\n", dev->c->voltage, dev->c->current, dev->c->charge, dev->c->capacity);
-        printf("old: %2.3f %2.3f %2.3f\tnew: %2.3f %2.3f %2.3f\tadj: %2.3f %2.3f\tscale: %2.3f\n", dev->c->ox, dev->c->oy, dev->c->oa, dev->ox, dev->oy, dev->oa, adjX, adjY, scaleByCharge(dev,BATT_FACT));
-        printf("VX: %2.3f  VA: %2.3f  Te: %2.3f  Re: %2.3f  wallD: %3.3f %3.3f He: %2.3f  walls: %d\n", vX, vA, tError, rError, wallL, wallR, hError, walls);
+        //printf("old: %2.3f %2.3f %2.3f\tnew: %2.3f %2.3f %2.3f\tadj: %2.3f %2.3f\tscale: %2.3f\n", dev->c->ox, dev->c->oy, dev->c->oa, dev->ox, dev->oy, dev->oa, adjX, adjY, scaleByCharge(dev,BATT_FACT));
+        //printf("VX: %2.3f  VA: %2.3f  Te: %2.3f  Re: %2.3f  wallD: %3.3f %3.3f He: %2.3f  walls: %d\n", vX, vA, tError, rError, wallL, wallR, hError, walls);
         #endif
 
         usleep(LOOP_SLEEP);  //sleep long enough for the sensors to refresh
@@ -504,7 +515,7 @@ double Move(api_HANDLES_t * dev, FilterHandles_t * filter, pidHandles_t * pids, 
 #else
         filterSonar(dev, filter, &wallL, &wallR);
 #endif
-        if(fabs(tError) <= pids->trans->tol) { arrived = 1; } //Check if we made it yet
+        if(fabs(tError) <= tol) { arrived = 1; } //Check if we made it yet
     }
 
     return tranError(adjX, adjY, pids->trans, X, Y);
@@ -523,7 +534,7 @@ double Turn(api_HANDLES_t * dev, FilterHandles_t * filter, pidHandles_t * pids, 
 
         create_set_speeds(dev->c, vX, vA); //set new velocities
         #ifdef DEBUG
-            printf("turn old: %2.3f\tnew: %2.3f\tscale: %2.3f\tVX: %2.3f\tVA: %2.3f\tRe: %2.3f\n", dev->c->oa, dev->oa, scaleByCharge(dev,BATT_FACT),vX, vA, rError);
+            //printf("turn old: %2.3f\tnew: %2.3f\tscale: %2.3f\tVX: %2.3f\tVA: %2.3f\tRe: %2.3f\n", dev->c->oa, dev->oa, scaleByCharge(dev,BATT_FACT),vX, vA, rError);
         #endif
 
         usleep(LOOP_SLEEP);  //sleep long enough for the sensors to refresh
@@ -667,16 +678,20 @@ void centerFrontBack(api_HANDLES_t * dev, FilterHandles_t * filter, pidHandles_t
     char wall_front = 0;
     char wall_back = 0;
     char wall_both = 0;
+    int i;
     
     //sonar0 is in back sonar1 is the front
     //CELL_VAR = 80.0
     //HALFCELL_VAR = 40.0
     
     //polls sonar
-    filterSonar(dev, filter, &back, &front);
+    for(i=0; i<15; i++) {
+        filterSonar(dev, filter, &back, &front);
+        usleep(100000);
+    }
 #ifdef DEBUG
-    printf("Distance in front is: %d\n", front);
-    printf("Distance in back is: %d\n", back);
+    printf("Distance in front is: %f\n", front);
+    printf("Distance in back is: %f\n", back);
 #endif
 
     if(front < CELL_VAR && front > 0.0) //sees a wall in front
@@ -688,81 +703,80 @@ void centerFrontBack(api_HANDLES_t * dev, FilterHandles_t * filter, pidHandles_t
         
     if(wall_both){  //calculates difference based on two walls
 
-        difference = front - back;
+        difference = (front - back) / 100.0;
 #ifdef DEBUG
         printf("The robot sees a front and a back wall\n");
-        printf("The difference between the front and back is: %d\n",difference);
+        printf("The difference between the front and back is: %f\n",difference);
         if(difference > 0.0)
-            printf("The robot needs to move forward by: %d\n", difference/2.0);
+            printf("The robot needs to move forward by: %f\n", difference/2.0);
         if(difference < 0.0)
-            printf("The robot needs to move backward by: %d\n", difference/2.0);
+            printf("The robot needs to move backward by: %f\n", difference/2.0);
 #endif
-
         //checks the robots heading and sets coordinates based on heading
         if(fabs(angleDiff(NORTH, dev->oa)) <= PI/4.0) {    //facing NORTH
-            Move(dev,filter,pids, (dev->ox+(difference/2.0)), dev->oy);
+            Move(dev,filter,pids, (dev->ox+(difference/2.0)), dev->oy, CORRECT_TOL);
         }
         else if(fabs(angleDiff(EAST, dev->oa)) <= PI/4.0) { //facing EAST
-            Move(dev,filter,pids, dev->ox, (dev->oy - (difference/2.0)));
+            Move(dev,filter,pids, dev->ox, (dev->oy - (difference/2.0)), CORRECT_TOL);
         }
         else if(fabs(angleDiff(SOUTH, dev->oa)) <= PI/4.0) {    //facing SOUTH
-            Move(dev,filter,pids, (dev->ox - (difference/2.0)), dev->oy);
+            Move(dev,filter,pids, (dev->ox - (difference/2.0)), dev->oy, CORRECT_TOL);
         }
         else {                                              //facing WEST
-            Move(dev,filter,pids, dev->ox, (dev->oy + (difference/2.0)));
+            Move(dev,filter,pids, dev->ox, (dev->oy + (difference/2.0)), CORRECT_TOL);
         }
     }
     else if(wall_front){    //calculates difference based on front wall only
         
-        difference = front - HALFCELL_VAR;
+        difference = (front - HALFCELL_VAR) / 100.0;
 #ifdef DEBUG
         printf("The robot sees the front wall only\n");
-        printf("The difference between the front and center is: %d\n", difference);
+        printf("The difference between the front and center is: %f\n", difference);
         if(difference > 0.0)
-            printf("The robot needs to move forward by: %d\n",difference);
+            printf("The robot needs to move forward by: %f\n",difference);
         if(difference < 0.0)
-            printf("The robot needs to move backward by: %d\n",difference);
+            printf("The robot needs to move backward by: %f\n",difference);
 #endif
-        
         //checks the robots heading and sets coordinated based on heading
         if(fabs(angleDiff(NORTH, dev->oa)) <= PI/4.0) {    //facing NORTH
-            Move(dev,filter,pids, (dev->ox+difference), dev->oy);
+            Move(dev,filter,pids, (dev->ox+difference), dev->oy, CORRECT_TOL);
         }
         else if(fabs(angleDiff(EAST, dev->oa)) <= PI/4.0) { //facing EAST
-            Move(dev,filter,pids, dev->ox, (dev->oy - difference));
+            Move(dev,filter,pids, dev->ox, (dev->oy - difference), CORRECT_TOL);
         }
         else if(fabs(angleDiff(SOUTH, dev->oa)) <= PI/4.0) {    //facing SOUTH
-            Move(dev,filter,pids, (dev->ox - difference), dev->oy);
+            Move(dev,filter,pids, (dev->ox - difference), dev->oy, CORRECT_TOL);
         }
         else{                                               //facing WEST
-            Move(dev,filter,pids, dev->ox, (dev->oy + difference));
+            Move(dev,filter,pids, dev->ox, (dev->oy + difference), CORRECT_TOL);
         }
     }
-    else{               //calculates difference based on back wall only
-        difference = HALFCELL_VAR - back;
+    else if(wall_back){               //calculates difference based on back wall only
+        difference = (HALFCELL_VAR - back) / 100.0;
 #ifdef  DEBUG
         printf("The robot sees the back wall only\n");
-        printf("The difference between the back and center is: %d\n", difference);
+        printf("The difference between the back and center is: %f\n", difference);
         if(difference > 0.0)
-            printf("The robot needs to move forward by: %d\n",difference);
+            printf("The robot needs to move forward by: %f\n",difference);
         if(difference < 0.0)
-            printf("The robot needs to move backward by: %d\n",difference);
+            printf("The robot needs to move backward by: %f\n",difference);
 #endif
         //checks the robots heading and sets coordinated based on heading
         if(fabs(angleDiff(NORTH, dev->oa)) <= PI/4.0) {    //facing NORTH
-            Move(dev,filter,pids, (dev->ox+difference), dev->oy);
+            Move(dev,filter,pids, (dev->ox+difference), dev->oy, CORRECT_TOL);
         }
         else if(fabs(angleDiff(EAST, dev->oa)) <= PI/4.0) { //facing EAST
-            Move(dev,filter,pids, dev->ox, (dev->oy - difference));
+            Move(dev,filter,pids, dev->ox, (dev->oy - difference), CORRECT_TOL);
         }
         else if(fabs(angleDiff(SOUTH, dev->oa)) <= PI/4.0) {    //facing SOUTH
-            Move(dev,filter,pids, (dev->ox - difference), dev->oy);
+            Move(dev,filter,pids, (dev->ox - difference), dev->oy, CORRECT_TOL);
         }
         else{                                               //facing WEST
-            Move(dev,filter,pids, dev->ox, (dev->oy + difference));
+            Move(dev,filter,pids, dev->ox, (dev->oy + difference), CORRECT_TOL);
         }
     }
     
+    create_set_speeds(dev->c, 0, 0);
 #ifdef DEBUG
     printf("Adjustment Complete, Exiting function\n");
 #endif
