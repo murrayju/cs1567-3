@@ -64,6 +64,8 @@
 #define SLOW_VX     0.25     //Slow robot speed for safe turning
 
 #define CELL_DIST   (85.0/100.0)
+#define CELL_VAR    80.0
+#define HALFCELL_VAR (CELL_VAR / 2.0)
 
 #define TIMEOUT 200
 
@@ -168,15 +170,16 @@ typedef struct _roboPos {
 
 typedef struct _mazeNode {
     int walls;
-    mazeNode * N;
-    mazeNode * S;
-    mazeNode * E;
-    mazeNode * W;
+    struct _mazeNode * N;
+    struct _mazeNode * S;
+    struct _mazeNode * E;
+    struct _mazeNode * W;
+    struct _mazeNode * from;
     int probset;
     int probN;
     int probS;
     int probE;
     int probW;
-} mazeNode
+} mazeNode;
 
 #endif

@@ -488,10 +488,10 @@ double Move(api_HANDLES_t * dev, FilterHandles_t * filter, pidHandles_t * pids, 
             vA = (0.3*PID(pids->angle) + 0.7*PID(pids->sonar))*scaleByCharge(dev,BATT_FACT);
             if(wallL < SIDE_DIST || wallR < SIDE_DIST) {
                 //We are very close to the wall, take preventative measures
-                vX = SLOW_VX;
+                vX = SLOW_VX * 1.5;
             } else {
                 closeToWall = 0;
-                vX = PID(pids->trans);
+                vX = PID(pids->trans) * 1.2;
             }
         }
 
@@ -660,4 +660,115 @@ void fixOrientation(api_HANDLES_t * dev, FilterHandles_t * filter, pidHandles_t 
     
     //Set the corrected angle
     dev->oa = h;
+}
+
+
+void centerFrontBack(api_HANDLES_t * dev, FilterHandles_t * filter, pidHandles_t * pids){
+    /*  This function will be used to center the robot in the cell.  
+    *   This function is simple and will only center front to back because
+    *   we can then turn the robot 90 degrees and call the same function again
+    */
+    
+    double front, back, difference, heading;
+    char wall_front = wall_back = wall_both = 0;
+    
+    //sonar0 is in back sonar1 is the front
+    //CELL_VAR = 80.0
+    //HALFCELL_VAR = 40.0
+    
+    //polls sonar
+    filterSonar(dev, filter, &back, &front);
+#ifdef DEBUG
+    printf("Distance in front is: %d\n", front);
+    printf("Distance in back is: %d\n", back);
+#endif
+
+    if(front < CELL_VAR && front > 0.0) //sees a wall in front
+        wall_front = 1;
+    if(back < CELL_VAR && back > 0.0)   //sees a wall behind
+        wall_back = 1;
+    if(wall_front && wall_back)
+        wall_both = 1;
+        
+    if(wall_both){  //calculates difference based on two walls
+
+        difference = front - back;
+#ifdef DEBUG
+        printf("The robot sees a front and a back wall\n");
+        printf("The difference between the front and back is: %d\n",difference);
+        if(difference > 0.0)
+            printf("The robot needs to move forward by: %d\n", difference/2.0);
+        if(difference < 0.0)
+            printf("The robot needs to move backward by: %d\n", difference/2.0);
+#endif
+
+        //checks the robots heading and sets coordinates based on heading
+        if(fabs(angleDiff(NORTH, dev->oa)) <= PI/4.0) {    //facing NORTH
+            Move(dev,filter,pids, (dev->ox+(difference/2.0)), dev->oy);
+        }
+        else if(fabs(angleDiff(EAST, dev->oa)) <= PI/4.0) { //facing EAST
+            Move(dev,filter,pids, dev->ox, (dev->oy - (difference/2.0)));
+        }
+        else if(fabs(angleDiff(SOUTH, dev->oa)) <= PI/4.0) {    //facing SOUTH
+            Move(dev,filter,pids, (dev->ox - (difference/2.0)), dev->oy);
+        }
+        else {                                              //facing WEST
+            Move(dev,filter,pids, dev->ox, (dev->oy + (difference/2.0)));
+        }
+    }
+    else if(wall_front){    //calculates difference based on front wall only
+        
+        difference = front - HALFCELL_VAR;
+#ifdef DEBUG
+        printf("The robot sees the front wall only\n");
+        printf("The difference between the front and center is: %d\n", difference);
+        if(difference > 0.0)
+            printf("The robot needs to move forward by: %d\n",difference);
+        if(difference < 0.0)
+            printf("The robot needs to move backward by: %d\n",difference);
+#endif
+        
+        //checks the robots heading and sets coordinated based on heading
+        if(fabs(angleDiff(NORTH, dev->oa)) <= PI/4.0) {    //facing NORTH
+            Move(dev,filter,pids, (dev->ox+difference), dev->oy);
+        }
+        else if(fabs(angleDiff(EAST, dev->oa)) <= PI/4.0) { //facing EAST
+            Move(dev,filter,pids, dev->ox, (dev->oy - difference));
+        }
+        else if(fabs(angleDiff(SOUTH, dev->oa)) <= PI/4.0) {    //facing SOUTH
+            Move(dev,filter,pids, (dev->ox - difference), dev->oy);
+        }
+        else{                                               //facing WEST
+            Move(dev,filter,pids, dev->ox, (dev->oy + difference));
+        }
+    }
+    else{               //calculates difference based on back wall only
+        difference = HALFCELL_VAR - back;
+#ifdef  DEBUG
+        printf("The robot sees the back wall only\n");
+        printf("The difference between the back and center is: %d\n", difference);
+        if(difference > 0.0)
+            printf("The robot needs to move forward by: %d\n",difference);
+        if(difference < 0.0)
+            printf("The robot needs to move backward by: %d\n",difference);
+#endif
+        //checks the robots heading and sets coordinated based on heading
+        if(fabs(angleDiff(NORTH, dev->oa)) <= PI/4.0) {    //facing NORTH
+            Move(dev,filter,pids, (dev->ox+difference), dev->oy);
+        }
+        else if(fabs(angleDiff(EAST, dev->oa)) <= PI/4.0) { //facing EAST
+            Move(dev,filter,pids, dev->ox, (dev->oy - difference));
+        }
+        else if(fabs(angleDiff(SOUTH, dev->oa)) <= PI/4.0) {    //facing SOUTH
+            Move(dev,filter,pids, (dev->ox - difference), dev->oy);
+        }
+        else{                                               //facing WEST
+            Move(dev,filter,pids, dev->ox, (dev->oy + difference));
+        }
+    }
+    
+#ifdef DEBUG
+    printf("Adjustment Complete, Exiting function\n");
+#endif
+        
 }

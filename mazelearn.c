@@ -7,6 +7,7 @@
 #include <string.h>
 #include <signal.h>
 #include <pthread.h>
+#include <time.h>
 #include "types.h"
 
 #define FULLCONTROL 1
@@ -38,7 +39,7 @@ void cleanup() {
     free(hands);
     hands = NULL;
     free(filt);
-    file = NULL;
+    filt = NULL;
     free(pids);
     pids = NULL;
 }
@@ -50,14 +51,25 @@ void sighandle(int sig) {
     exit(-2);
 }
 
+mazeNode * newNode() {
+    mazeNode * temp = malloc(sizeof(mazeNode));
+    memset(temp,0,sizeof(mazeNode));
+    return temp;
+}
+
+int foundGoal(int wdis, double angle) {
+    
+}
+
 int main(int argc, const char **argv) {
-    int i, a, num, rnum;
+    int i, a, num, rnum, p, wdir;
     double t;
     int i2c_fd;
     pthread_t thread;
     double N,S,E,W;
     int wdis;
-    mazeNode nodes[MAX_NODES];
+    mazeNode * cNode;
+    mazeNode * sNode;
 
     //Set signals to handle
     signal(SIGINT, &sighandle);
@@ -118,15 +130,9 @@ int main(int argc, const char **argv) {
     pids->angle = initializePID(ANGLE_PID);
     pids->sonar = initializePID(SONAR_PID);
     pids->angleT = initializePID(ANGLET_PID);
-
-    //Initialize node list
-    memset(nodes,0,MAX_NODES*sizeof(mazeNode));
-    for(i=0; i<MAX_NODES; i++) {
-        nodes[i].probN = PROB_UNINIT;
-        nodes[i].probS = PROB_UNINIT;
-        nodes[i].probE = PROB_UNINIT;
-        nodes[i].probW = PROB_UNINIT;
-    }
+    
+    //Seed the rand function
+    srand ( time(NULL) );
 
     // process command line args
     i = 1;
@@ -180,30 +186,120 @@ int main(int argc, const char **argv) {
 #endif
     }
 
-    i=0;
+    sNode = cNode = newNode();
+
     //Solve the maze
     while((wdis = What_Do_I_See(hands, filt, &N, &S, &E, &W)) != GOAL) {
-        nodes[i].walls = wdis;
-        num = COUNT_WALLS(nodes[i].walls);
-
+        printf("start while\n");
+        cNode->walls = wdis;
+        num = COUNT_WALLS(cNode->walls);
+        if(cNode != sNode && cNode->from != NULL) {
+            num--; //Don't count where we came from
+        }
+        printf("spot 1\n");
         //Allocate fair probs if this is the first time
-        if(!nodes[i].probset) {
-            if(!HAS_WEST_WALL(nodes[i].walls)) {
-                nodes[i].probW = 100 / num;
-            }
-            if(!HAS_EAST_WALL(nodes[i].walls)) {
-                nodes[i].probE = 100 / num;
-            }
-            if(!HAS_NORTH_WALL(nodes[i].walls)) {
-                nodes[i].probN = 100 / num;
-            }
-            if(!HAS_SOUTH_WALL(nodes[i].walls)) {
-                nodes[i].probS = 100 / num;
+        if(!HAS_WEST_WALL(cNode->walls)) {
+            if(cNode->from != NULL && cNode->from == cNode->W) {
+                cNode->probW = 0;
+            } else {
+                printf("spot 1.2\n");
+                if(!cNode->probset) {
+                    cNode->probW = 100 / num;
+                }
             }
         }
-
+        if(!HAS_EAST_WALL(cNode->walls)) {
+            if(cNode->from != NULL && cNode->from == cNode->E) {
+                cNode->probE = 0;
+            } else {
+                if(!cNode->probset) {
+                    cNode->probE = 100 / num;
+                }
+            }
+        }
+        if(!HAS_NORTH_WALL(cNode->walls)) {
+            if(cNode->from != NULL && cNode->from == cNode->N) {
+                cNode->probN = 0;
+            } else {
+                if(!cNode->probset) {
+                    cNode->probN = 100 / num;
+                }
+            }
+        }
+        if(!HAS_SOUTH_WALL(cNode->walls)) {
+            if(cNode->from != NULL && cNode->from == cNode->S) {
+                cNode->probS = 0;
+            } else {
+                if(!cNode->probset) {
+                    cNode->probS = 100 / num;
+                }
+            }
+        }
+        cNode->probset = 1;
+        printf("spot 2\n");
+        
+        //roll the dice...
+        p = cNode->probW + cNode->probE + cNode->probN + cNode->probS;
+        if(p > 0) {
+            printf("spot 2.5 - %d, %d\n",p,rand());
+            rnum = (rand() % p) + 1;
+            printf("spot 3\n");
+            
+            //Find the winner and change the current node
+            wdir = -1;
+            if(cNode->probW > 0) {
+                p -= cNode->probW;
+                if(rnum >= p) {
+                    wdir = WEST_BIT;
+                    if(cNode->W == NULL) {
+                        cNode->W = newNode();
+                    }
+                    cNode->W->E = cNode->W->from = cNode;
+                    cNode = cNode->W;
+                }
+            }
+            if(wdir < 0 && cNode->probE > 0) {
+                p -= cNode->probE;
+                if(rnum >= p) {
+                    wdir = EAST_BIT;
+                    if(cNode->E == NULL) {
+                        cNode->E = newNode();
+                    }
+                    cNode->E->W = cNode->E->from = cNode;
+                    cNode = cNode->E;
+                }
+            }
+            if(wdir < 0 && cNode->probN > 0) {
+                p -= cNode->probN;
+                if(rnum >= p) {
+                    wdir = NORTH_BIT;
+                    if(cNode->N == NULL) {
+                        cNode->N = newNode();
+                    }
+                    cNode->N->S = cNode->N->from = cNode;
+                    cNode = cNode->N;
+                }
+            }
+            if(wdir < 0 && cNode->probS > 0) {
+                p -= cNode->probS;
+                if(rnum >= p) {
+                    wdir = SOUTH_BIT;
+                    if(cNode->S == NULL) {
+                        cNode->S = newNode();
+                    }
+                    cNode->S->N = cNode->S->from = cNode;
+                    cNode = cNode->S;
+                }
+            }
+            printf("spot 4\n");
+            //Move to the winning square
+            Move_To_Next(hands, filt, pids, wdir);
+        }
+        printf("spot 5\n");
 
     }
+    create_set_speeds(hands->c, 0.0, 0.0); //stop
+    printf("\nI have reached a goal!!!\n");
 
     // Shutdown and tidy up.  Close all of the proxy handles
     cleanup();
