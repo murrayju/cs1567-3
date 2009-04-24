@@ -30,7 +30,7 @@
 
 #define NUM_PID_C   5
 //define PID coeffs {Kp, Kd, Ki, tolerance, maxI}
-#define TRANS_PID_C {0.15, 0.3, 0.005, 0.1, 10.0}		//changed these pids
+#define TRANS_PID_C {0.45, 0.35, 0.005, 0.1, 10.0}		//changed these pids
 #ifdef USE_IR_MODE
     #define SONAR_PID_C {0.009, 0.002, 0.00002, 0.1, 0.0001}
     #define ANGLE_PID_C {0.6, 0.5, 0.0002, 0.1, 1.0}
@@ -175,7 +175,6 @@ typedef struct _mazeNode {
     struct _mazeNode * E;
     struct _mazeNode * W;
     struct _mazeNode * from;
-    int probset;
     int probN;
     int probS;
     int probE;

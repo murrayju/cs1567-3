@@ -97,15 +97,19 @@ int What_Do_I_See(api_HANDLES_t * dev, FilterHandles_t * filt, double * N, doubl
 
      //determines which heading the robot has and sets the values accoringly
      if(fabs(angleDiff(NORTH, dev->oa)) <= PI/4.0) {    //facing north
+        printf("Facing North %f\n", dev->oa);
         filterSonar(dev, filt, S, N);  //gets sonar readings
         filterIR(dev, filt, E, W);     //gets ir readings
      } else if(fabs(angleDiff(EAST, dev->oa)) <= PI/4.0) {    //facing east
+        printf("Facing East %f\n", dev->oa);
         filterSonar(dev, filt, W, E);  //gets sonar readings
         filterIR(dev, filt, S, N);     //gets ir readings
      } else if(fabs(angleDiff(SOUTH, dev->oa)) <= PI/4.0) {   //facing south
+     printf("Facing South %f\n", dev->oa);
         filterSonar(dev, filt, N, S);  //gets sonar readings
         filterIR(dev, filt, W, E);     //gets ir readings
      } else { // if(fabs(angleDiff(WEST, dev->oa)) <= PI/4.0) {    //facing west
+     printf("Facing West %f\n", dev->oa);
         filterSonar(dev, filt, E, W);  //gets sonar readings
         filterIR(dev, filt, N, S);     //gets ir readings
      }

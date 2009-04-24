@@ -55,6 +55,10 @@ void sighandle(int sig) {
 mazeNode * newNode() {
     mazeNode * temp = malloc(sizeof(mazeNode));
     memset(temp,0,sizeof(mazeNode));
+    temp->probN = -1;
+    temp->probS = -1;
+    temp->probE = -1;
+    temp->probW = -1;
     return temp;
 }
 
@@ -186,14 +190,11 @@ int main(int argc, const char **argv) {
 #endif
     //Rotate the Servo
     turret_SetServo(hands->t, T_ANGLE);
-    usleep(100000);
+    usleep(500000);
 
     //Fill the sensors with data before we start
-    for(i=0; i<FILT_IR_SAMPLES; i++) {
-        filterIR(hands, filt, &t, &t);
-#ifndef USE_IR_MODE
-        filterSonar(hands, filt, &t, &t);
-#endif
+    for(i=0; i<20; i++) {
+        wdis = What_Do_I_See(hands, filt, &N, &S, &E, &W);
     }
 
     sNode = cNode = newNode();
@@ -202,52 +203,60 @@ int main(int argc, const char **argv) {
     while(!foundGoal((wdis = What_Do_I_See(hands, filt, &N, &S, &E, &W)),hands->oa) && !bumped(hands)) {
         printf("start while\n");
         cNode->walls = wdis;
-        num = COUNT_WALLS(cNode->walls);
-        printf("Num walls %d, heading %f\n",num,hands->oa);
+        num = 4 - COUNT_WALLS(cNode->walls);
+        printf("Num openings %d, heading %f\n",num,hands->oa);
         if(cNode != sNode && cNode->from != NULL) {
             num--; //Don't count where we came from
+            printf("num--\n");
         }
         printf("spot 1\n");
         if(num > 0) {
             //Allocate fair probs if this is the first time
+            printf("Has West Wall %d, %d\n",HAS_WEST_WALL(cNode->walls),cNode->walls);
             if(!HAS_WEST_WALL(cNode->walls)) {
                 if(cNode->from != NULL && cNode->from == cNode->W) {
+                    printf("spot 1.1\n");
                     cNode->probW = 0;
                 } else {
                     printf("spot 1.2\n");
-                    if(!cNode->probset) {
+                    if(cNode->probW < 0) {
                         cNode->probW = 100 / num;
                     }
                 }
             }
             if(!HAS_EAST_WALL(cNode->walls)) {
                 if(cNode->from != NULL && cNode->from == cNode->E) {
+                    printf("spot 1.3\n");
                     cNode->probE = 0;
                 } else {
-                    if(!cNode->probset) {
+                    if(cNode->probE < 0) {
+                        printf("spot 1.4\n");
                         cNode->probE = 100 / num;
                     }
                 }
             }
             if(!HAS_NORTH_WALL(cNode->walls)) {
                 if(cNode->from != NULL && cNode->from == cNode->N) {
+                    printf("spot 1.5\n");
                     cNode->probN = 0;
                 } else {
-                    if(!cNode->probset) {
+                    if(cNode->probN < 0) {
+                        printf("spot 1.6\n");
                         cNode->probN = 100 / num;
                     }
                 }
             }
             if(!HAS_SOUTH_WALL(cNode->walls)) {
                 if(cNode->from != NULL && cNode->from == cNode->S) {
+                    printf("spot 1.7\n");
                     cNode->probS = 0;
                 } else {
-                    if(!cNode->probset) {
+                    if(cNode->probS < 0) {
+                        printf("spot 1.8\n");
                         cNode->probS = 100 / num;
                     }
                 }
             }
-            cNode->probset = 1;
         }
         printf("spot 2\n");
         
@@ -307,11 +316,16 @@ int main(int argc, const char **argv) {
             printf("spot 4\n");
             //Move to the winning square
             Move_To_Next(hands, filt, pids, wdir);
+            
+            create_set_speeds(hands->c, 0.0, 0.0); //stop
+            for(i=0; i<20; i++) {
+                wdis = What_Do_I_See(hands, filt, &N, &S, &E, &W);
+            }
         }
         printf("spot 5\n");
 
     }
-    create_set_speeds(hands->c, 0.0, 0.0); //stop
+    
     if(!bumped(hands)) {
         printf("\nI have reached a goal!!!\n");
     }
