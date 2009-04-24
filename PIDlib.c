@@ -670,7 +670,9 @@ void centerFrontBack(api_HANDLES_t * dev, FilterHandles_t * filter, pidHandles_t
     */
     
     double front, back, difference, heading;
-    char wall_front = wall_back = wall_both = 0;
+    char wall_front = 0;
+    char wall_back = 0;
+    char wall_both = 0;
     
     //sonar0 is in back sonar1 is the front
     //CELL_VAR = 80.0

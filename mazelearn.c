@@ -8,6 +8,7 @@
 #include <signal.h>
 #include <pthread.h>
 #include <time.h>
+#include <math.h>
 #include "types.h"
 
 #define FULLCONTROL 1
@@ -58,7 +59,15 @@ mazeNode * newNode() {
 }
 
 int foundGoal(int wdis, double angle) {
-    
+    if(fabs(angleDiff(NORTH, angle)) <= PI/4.0) {    //facing north
+        return (wdis == 0xE);
+    } else if(fabs(angleDiff(EAST, angle)) <= PI/4.0) {    //facing east
+        return (wdis == 0x7);
+    } else if(fabs(angleDiff(SOUTH, angle)) <= PI/4.0) {   //facing south
+        return (wdis == 0xB);
+    } else { // if(fabs(angleDiff(WEST, angle)) <= PI/4.0) {    //facing west
+        return (wdis == 0xD);
+    }
 }
 
 int main(int argc, const char **argv) {
@@ -177,6 +186,7 @@ int main(int argc, const char **argv) {
 #endif
     //Rotate the Servo
     turret_SetServo(hands->t, T_ANGLE);
+    usleep(100000);
 
     //Fill the sensors with data before we start
     for(i=0; i<FILT_IR_SAMPLES; i++) {
@@ -189,53 +199,56 @@ int main(int argc, const char **argv) {
     sNode = cNode = newNode();
 
     //Solve the maze
-    while((wdis = What_Do_I_See(hands, filt, &N, &S, &E, &W)) != GOAL) {
+    while(!foundGoal((wdis = What_Do_I_See(hands, filt, &N, &S, &E, &W)),hands->oa) && !bumped(hands)) {
         printf("start while\n");
         cNode->walls = wdis;
         num = COUNT_WALLS(cNode->walls);
+        printf("Num walls %d, heading %f\n",num,hands->oa);
         if(cNode != sNode && cNode->from != NULL) {
             num--; //Don't count where we came from
         }
         printf("spot 1\n");
-        //Allocate fair probs if this is the first time
-        if(!HAS_WEST_WALL(cNode->walls)) {
-            if(cNode->from != NULL && cNode->from == cNode->W) {
-                cNode->probW = 0;
-            } else {
-                printf("spot 1.2\n");
-                if(!cNode->probset) {
-                    cNode->probW = 100 / num;
+        if(num > 0) {
+            //Allocate fair probs if this is the first time
+            if(!HAS_WEST_WALL(cNode->walls)) {
+                if(cNode->from != NULL && cNode->from == cNode->W) {
+                    cNode->probW = 0;
+                } else {
+                    printf("spot 1.2\n");
+                    if(!cNode->probset) {
+                        cNode->probW = 100 / num;
+                    }
                 }
             }
-        }
-        if(!HAS_EAST_WALL(cNode->walls)) {
-            if(cNode->from != NULL && cNode->from == cNode->E) {
-                cNode->probE = 0;
-            } else {
-                if(!cNode->probset) {
-                    cNode->probE = 100 / num;
+            if(!HAS_EAST_WALL(cNode->walls)) {
+                if(cNode->from != NULL && cNode->from == cNode->E) {
+                    cNode->probE = 0;
+                } else {
+                    if(!cNode->probset) {
+                        cNode->probE = 100 / num;
+                    }
                 }
             }
-        }
-        if(!HAS_NORTH_WALL(cNode->walls)) {
-            if(cNode->from != NULL && cNode->from == cNode->N) {
-                cNode->probN = 0;
-            } else {
-                if(!cNode->probset) {
-                    cNode->probN = 100 / num;
+            if(!HAS_NORTH_WALL(cNode->walls)) {
+                if(cNode->from != NULL && cNode->from == cNode->N) {
+                    cNode->probN = 0;
+                } else {
+                    if(!cNode->probset) {
+                        cNode->probN = 100 / num;
+                    }
                 }
             }
-        }
-        if(!HAS_SOUTH_WALL(cNode->walls)) {
-            if(cNode->from != NULL && cNode->from == cNode->S) {
-                cNode->probS = 0;
-            } else {
-                if(!cNode->probset) {
-                    cNode->probS = 100 / num;
+            if(!HAS_SOUTH_WALL(cNode->walls)) {
+                if(cNode->from != NULL && cNode->from == cNode->S) {
+                    cNode->probS = 0;
+                } else {
+                    if(!cNode->probset) {
+                        cNode->probS = 100 / num;
+                    }
                 }
             }
+            cNode->probset = 1;
         }
-        cNode->probset = 1;
         printf("spot 2\n");
         
         //roll the dice...
@@ -299,7 +312,9 @@ int main(int argc, const char **argv) {
 
     }
     create_set_speeds(hands->c, 0.0, 0.0); //stop
-    printf("\nI have reached a goal!!!\n");
+    if(!bumped(hands)) {
+        printf("\nI have reached a goal!!!\n");
+    }
 
     // Shutdown and tidy up.  Close all of the proxy handles
     cleanup();
