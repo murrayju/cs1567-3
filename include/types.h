@@ -166,4 +166,17 @@ typedef struct _roboPos {
     double a;
 } roboPos_t;
 
+typedef struct _mazeNode {
+    int walls;
+    mazeNode * N;
+    mazeNode * S;
+    mazeNode * E;
+    mazeNode * W;
+    int probset;
+    int probN;
+    int probS;
+    int probE;
+    int probW;
+} mazeNode
+
 #endif

@@ -5,6 +5,8 @@
 #define EAST_BIT  1
 #define SOUTH_BIT 0
 
+#define GOAL 0xE //The goal is defined as walls in front and on both sides
+
 #define HAS_WEST_WALL(w)  ((w >> WEST_BIT)  & 1)
 #define HAS_NORTH_WALL(w) ((w >> NORTH_BIT) & 1)
 #define HAS_EAST_WALL(w)  ((w >> EAST_BIT)  & 1)
@@ -21,6 +23,8 @@
 #define CLEAR_SOUTH_WALL(w) (w = (w & ~(1 << SOUTH_BIT)))
 
 #define COUNT_WALLS(w)  (HAS_WEST_WALL(w) + HAS_EAST_WALL(w) + HAS_NORTH_WALL(w) + HAS_SOUTH_WALL(w))
+
+#define MAX_NODES   50
 
 int Move_To_Next(api_HANDLES_t *, FilterHandles_t *, pidHandles_t *, int);
 int What_Do_I_See(api_HANDLES_t * dev, FilterHandles_t * filt, double * N, double * S, double * E, double * W);
